@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Sending</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <style>
+        :root {
+            --primary: #16db65;
+            --primary-dark: #13b156;
+            --accent: #008cff;
+            --danger: #ff4d5d;
+            --bg-glass: rgba(255, 255, 255, 0.22);
+            --bg-glass-dark: rgba(44, 62, 80, 0.6);
+            --glass-blur: 32px;
+            --page-bg: linear-gradient(135deg, #f0f4f9 0%, #c3cfe2 100%);
+            --page-bg-dark: linear-gradient(135deg, #223241 0%, #273952 100%);
+            --text-main: #121825;
+            --text-main-dark: #ededed;
+            --text-sub: #444f5a;
+            --text-sub-dark: #a4b6c3;
+            --file-row-bg: #fff;
+            --file-row-bg-dark: #263342;
+
+            --notification-bg-success: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            --notification-bg-error: linear-gradient(90deg, #ff5f6d, #ff3c4d);
+            --notification-bg-info: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+            --notification-text: #1a252f;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scrollbar-gutter: stable;
+            height: 100%;
+            /* overflow: hidden; */
+            overflow-y: auto;
+            /* disable scrolling beyond content */
+            overscroll-behavior: none;
+            background: var(--page-bg);
+            scrollbar-width: none;
+            /* For Firefox */
+            -ms-overflow-style: none;
+            /* For Internet Explorer and Edge */
+        }
+
+        body::-webkit-scrollbar {
+            display: none;
+            /* For Chrome, Safari, and Opera */
+        }
+
+        body {
+            background: var(--page-bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            opacity: 0;
+            transition: background 0.6s ease, opacity 0.3s ease;
+        }
+
+        body.fade-in {
+            opacity: 1;
+            animation: fadeInAnimation ease 0.3s;
+        }
+
+        body.fade-out {
+            opacity: 0;
+            animation: fadeOutAnimation ease 0.3s;
+        }
+
+        @keyframes fadeInAnimation {
+            0% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateY(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOutAnimation {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+        }
+
+        body.dark-mode {
+            background: var(--page-bg-dark);
+            --file-row-bg: var(--file-row-bg-dark);
+            --text-main: var(--text-main-dark);
+            --text-sub: var(--text-sub-dark);
+            --bg-glass: var(--bg-glass-dark);
+
+            --notification-bg-success: linear-gradient(90deg, #15b85a, #139d4f);
+            --notification-bg-error: linear-gradient(90deg, #ff5260, #f83846);
+            --notification-bg-info: linear-gradient(92deg, #0081f0, #08a9c9 80%);
+            --notification-text: #fff;
+        }
+
+        #container {
+            min-width: 340px;
+            width: 94vw;
+            max-width: 550px;
+            padding: 2.5rem;
+            margin: 2.5rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 2rem;
+            background: var(--bg-glass);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
+            border: 1.2px solid rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(var(--glass-blur));
+            position: relative;
+            gap: 1.2rem;
+        }
+
+        body.dark-mode #container {
+            border: 1.2px solid rgba(255, 255, 255, 0.11);
+        }
+
+        h2 {
+            margin: 0 0 .8rem 0;
+            font-size: 1.28rem;
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: center;
+        }
+
+        #connection-info {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1rem;
+            padding: 1.5rem 0.5rem 3rem 0.5rem;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, .35);
+            margin-top: 3rem;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
+        }
+
+        body.dark-mode #connection-info {
+            background: rgba(4, 9, 14, 0.2);
+        }
+
+        #qrcode {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            line-height: 0;
+            display: none;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.5);
+            border: 1px solid rgba(0, 0, 0, 0.452);
+        }
+
+        #file-selection-area {
+            width: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            scroll-behavior: smooth;
+        }
+
+        #file-selection-area.visible {
+            display: flex;
+        }
+
+        #container.drag-over {
+            border: 2px dashed var(--primary);
+            background: rgba(22, 219, 101, 0.1);
+        }
+
+        #file-label {
+            width: 100%;
+            font-size: 1.18rem;
+            font-weight: 600;
+            padding: 1.4rem 0;
+            border: 2px dashed #a0edda;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-sub);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .7em;
+            transition: all .2s;
+        }
+
+        body.dark-mode #file-label {
+            border-color: #63dea6;
+        }
+
+        #file-label:hover,
+        #container.drag-over #file-label {
+            background: rgba(22, 219, 101, .1);
+            color: var(--primary-dark);
+            border-color: var(--primary);
+        }
+
+        #fileChoosen {
+            width: 100%;
+            padding: .6rem .4rem .7rem .2rem;
+            max-height: 240px;
+            overflow-y: auto;
+            display: none;
+            scroll-behavior: smooth;
+        }
+
+        #fileSummary {
+            width: 100%;
+            text-align: right;
+            font-size: 1.02rem;
+            color: var(--text-sub);
+            display: none;
+            margin-top: -1rem;
+        }
+
+        .fileList {
+            display: flex;
+            align-items: center;
+            border-radius: 10px;
+            padding: .73rem 1.1rem;
+            margin-bottom: .48rem;
+            background: var(--file-row-bg);
+            box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
+            color: var(--text-main);
+            font-size: 1.08rem;
+        }
+
+        .icon {
+            width: 29px;
+            height: 29px;
+            margin-right: 1.12rem;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+
+        .filename {
+            flex: 1 1 0;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 1rem;
+        }
+
+        .file-size {
+            font-size: 0.93rem;
+            color: var(--text-sub);
+            white-space: nowrap;
+        }
+
+        .delete-button {
+            margin-left: auto;
+            background-color: transparent;
+            color: #aaa;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        .delete-button:hover {
+            background-color: rgba(255, 77, 93, 0.1);
+            color: var(--danger);
+        }
+
+        .action-buttons {
+            display: flex;
+            width: 100%;
+            gap: 1rem;
+        }
+
+        .action-buttons button {
+            width: 100%;
+            font-size: 1.18rem;
+            font-weight: 600;
+            padding: 0.92rem 0;
+            border: none;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: transform .18s;
+        }
+
+        #sendButton {
+            background: linear-gradient(90deg, var(--primary) 30%, var(--primary-dark) 100%);
+            color: #fff;
+            display: none;
+        }
+
+        #sendButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #sendButton:disabled {
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #clearAllButton {
+            background: var(--danger);
+            color: #fff;
+            display: none;
+        }
+
+        #clearAllButton:hover {
+            transform: translateY(-2px);
+        }
+
+        .backButton {
+            background: #cbd1dd;
+            color: var(--text-sub);
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            padding: 0.68rem 2.1rem;
+            margin-top: 4rem;
+            cursor: pointer;
+            font-size: .98rem;
+            transition: background .18s, color .18s, transform .18s;
+            will-change: background, color, transform;
+        }
+
+        .backButton:hover {
+            background: var(--danger);
+            color: #fff;
+            transform: translateY(-3px);
+        }
+
+        body.dark-mode .backButton {
+            background: rgba(34, 50, 65, 0.85);
+            color: var(--text-main-dark);
+        }
+
+        #darkModeButton {
+            position: absolute;
+            top: 21px;
+            right: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #darkModeButton:hover {
+            transform: scale(1.2);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        body.dark-mode #darkModeButton {
+            background: #3b557b;
+            color: #ffe27a;
+        }
+
+        body.dark-mode #darkModeButton:hover {
+            background: #212936;
+            color: #fff;
+        }
+
+        #message {
+            position: fixed;
+            top: 50px;
+            left: 50%;
+            opacity: 0;
+            z-index: 1000;
+            color: var(--notification-text);
+            padding: 0.8rem 1.5rem;
+            font-weight: 600;
+            border-radius: 50px;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transform: translate(-50%, -20px);
+            /* Start position for animation */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            will-change: opacity, transform;
+        }
+
+        #message.show {
+            transform: translate(-50%, 0);
+            /* End position for animation */
+            opacity: 1;
+        }
+
+        #message.success {
+            background: var(--notification-bg-success);
+        }
+
+        #message.error {
+            background: var(--notification-bg-error);
+        }
+
+        #message.info {
+            background: var(--notification-bg-info);
+        }
+
+        #code-container {
+            display: none;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        #peerIdDisplay {
+            font-size: 2rem;
+            font-weight: 600;
+            letter-spacing: .19em;
+            user-select: all;
+            background: linear-gradient(90deg, var(--primary) 30%, var(--accent) 100%);
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        #copyIdButton {
+            background: transparent;
+            border: 2px solid var(--text-sub-dark);
+            color: var(--text-sub-dark);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        #copyIdButton:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+
+<body>
+    <input type="file" id="inputFile" multiple style="display:none">
+
+    <div id="message"></div>
+
+    <div id="container">
+
+        <button id="darkModeButton" title="Toggle dark mode" aria-label="Toggle dark mode"><i
+                class="fa-solid fa-sun"></i></button>
+
+        <div id="connection-info">
+
+            <h2><i class="fa-solid fa-spinner fa-spin"></i> Getting Online...</h2>
+
+            <div id="code-container">
+                <div id="peerIdDisplay"></div>
+                <button id="copyIdButton" title="Copy code"><i class="fa-solid fa-copy"></i></button>
+            </div>
+
+            <div id="qrcode"></div>
+
+        </div>
+
+        <div id="file-selection-area">
+
+            <label for="inputFile" id="file-label"><i class="fa-solid fa-folder-open"></i> Choose or Drag Files</label>
+            <div id="fileChoosen"></div>
+            <div id="fileSummary"></div>
+
+            <div class="action-buttons">
+                <button id="clearAllButton"><i class="fa-solid fa-trash"></i> Clear All</button>
+                <button id="sendButton" disabled><i class="fa-solid fa-paper-plane"></i> Send Files</button>
+            </div>
+
+        </div>
+
+        <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
+    </div>
+
+    <script>
+        "use strict";
+        const container = document.getElementById("container");
+        const connectionInfoDiv = document.getElementById("connection-info");
+        const h2_connection = document.querySelector('#connection-info h2');
+        const peerIdDisplay = document.getElementById('peerIdDisplay');
+        const qrCodeContainer = document.getElementById('qrcode');
+        const fileSelectionArea = document.getElementById('file-selection-area');
+        const inputtedFiles = document.getElementById("inputFile");
+        const filesDisplayArea = document.getElementById("fileChoosen");
+        const fileSummary = document.getElementById("fileSummary");
+        const clearAllButton = document.getElementById("clearAllButton");
+        const sendButton = document.getElementById("sendButton");
+        const backButton = document.querySelector('.backButton');
+        const darkModeButton = document.getElementById("darkModeButton");
+        const message = document.getElementById("message");
+        const codeContainer = document.getElementById('code-container');
+        const copyIdButton = document.getElementById('copyIdButton');
+        const body = document.body;
+
+        body.classList.add('fade-in');
+
+        let peer = null;
+        let connection = null;
+        let selectedFiles = [];
+        const urlParams = new URLSearchParams(window.location.search);
+        const peerId = urlParams.get('peerId');
+
+        if (peerId) {
+            peer = new Peer(peerId, { host: '192.168.27.174', port: 9000, path: '/peerjs/myapp' });
+            peer.on('open', id => {
+                h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
+
+                peerIdDisplay.textContent = id;
+                codeContainer.style.display = 'flex';
+
+                const receiverUrl = window.location.href.replace(/[^/]*$/, '') + `receiver.html?peerId=${id}`;
+                new QRCode(qrCodeContainer, { text: receiverUrl, width: 160, height: 160 });
+                qrCodeContainer.style.display = 'block';
+
+                copyIdButton.addEventListener('click', () => {
+                    copyText(id);
+                });
+            });
+            peer.on('connection', conn => {
+                connection = conn;
+                connectionInfoDiv.innerHTML = `<h2><i class="fa-solid fa-link"></i> Receiver Connected!</h2>`;
+                fileSelectionArea.classList.add('visible');
+            });
+            peer.on('error', err => {
+                if (err.type === 'network' && connection && connection.open) {
+                    console.warn('Harmless signaling server disconnect.');
+                    return;
+                }
+                alert('An error occurred with PeerJS: ' + err);
+                console.error(err);
+            });
+        } else {
+            alert("No Peer ID found. Redirecting...");
+            window.location.href = 'index.html';
+        }
+
+        async function copyText(text) {
+            // modern and secure way of copying to clipboard
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showMessage('Code copied to clipboard', 'success');
+                } catch (err) {
+                    console.error('Failed to copy code:', err);
+                    showMessage('Failed to copy code', 'error');
+                }
+                return // prevents fallback method from running unnecessarily
+            }
+
+            // Fallback for insecure pages (like http://)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                showMessage('Code copied to clipboard', 'success');
+                return document.execCommand("copy"); // an old API to copy content
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                showMessage('Failed to copy code', 'error');
+            } finally {
+                textArea.remove();
+            }
+        }
+
+        function showMessage(msg, type = 'info') {
+            message.textContent = msg;
+            message.className = ''; // Clear previous classes
+            message.classList.add(type);
+            message.classList.add('show');
+
+            setTimeout(() => {
+                message.classList.remove('show');
+            }, 2400);
+        }
+
+        function getIconByFileType(fileName) {
+            // const ext = fileName.split('.').pop().toLowerCase();
+            const index = fileName.lastIndexOf('.');
+            const ext = index > 0 && index < fileName.length - 1 ? fileName.slice(index + 1).toLowerCase() : '';
+
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'fa-file-image';
+            if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return 'fa-file-video';
+            if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'fa-file-audio';
+            if (['pdf'].includes(ext)) return 'fa-file-pdf';
+            if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) return 'fa-file-word';
+            if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) return 'fa-file-excel';
+            if (['ppt', 'pptx', 'odp'].includes(ext)) return 'fa-file-powerpoint';
+            if (['txt', 'md', 'log'].includes(ext)) return 'fa-file-lines';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'fa-file-zipper';
+            if (['html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx', 'json', 'json5', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'svg'].includes(ext)) {
+                return 'fa-file-code';
+            }
+            if (['js', 'mjs', 'cjs'].includes(ext)) return 'fa-brands fa-js';
+            if (['php'].includes(ext)) return 'fa-brands fa-php';
+            if (['py', 'pyw'].includes(ext)) return 'fa-brands fa-python';
+            if (['swift'].includes(ext)) return 'fa-brands fa-swift';
+            if (['r', 'rscript'].includes(ext)) return 'fa-brands fa-r-project';
+            if (['ts', 'tsx', 'jsx', 'java', 'kt', 'kts', 'scala', 'c', 'h', 'hh', 'hpp', 'cpp', 'cxx', 'cc', 'cs', 'go', 'rs', 'rb', 'sh', 'bash', 'zsh', 'ps1', 'psm1', 'bat', 'cmd', 'sql'].includes(ext)) {
+                return 'fa-file-code';
+            }
+            return 'fa-file';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function updateSummary() {
+            if (selectedFiles.length === 0) {
+                filesDisplayArea.style.display = "none"; fileSummary.style.display = "none";
+                clearAllButton.style.display = "none"; sendButton.style.display = "none";
+                sendButton.disabled = true;
+            } else {
+                let totalSize = selectedFiles.reduce((acc, file) => acc + file.size, 0);
+                fileSummary.style.display = "block";
+                fileSummary.textContent = `${selectedFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
+                clearAllButton.style.display = "block"; sendButton.style.display = "block";
+                sendButton.disabled = false;
+            }
+        }
+
+        function createFileElement(file) {
+            const div = document.createElement("div");
+            div.className = "fileList";
+            div.innerHTML = `<i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+            <span class="filename" title="${file.name}">${file.name}</span>
+            <span class="file-size">${formatFileSize(file.size)}</span>`;
+            const deleteButton = document.createElement("button");
+            deleteButton.className = "delete-button";
+            deleteButton.innerHTML = "&times;";
+            deleteButton.addEventListener('click', () => {
+                selectedFiles = selectedFiles.filter(f => f !== file);
+                renderFiles();
+            });
+            div.appendChild(deleteButton);
+            return div;
+        }
+
+        function renderFiles() {
+            filesDisplayArea.innerHTML = "";
+            if (selectedFiles.length > 0) {
+                filesDisplayArea.style.display = "block";
+                selectedFiles.forEach(file => filesDisplayArea.appendChild(createFileElement(file)));
+            }
+            updateSummary();
+        }
+
+        function addFiles(fileList) {
+            for (const file of fileList) {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFiles();
+        }
+
+        backButton.addEventListener('click', () => {
+            body.classList.add('fade-out');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 350);
+        });
+
+        inputtedFiles.addEventListener("change", (e) => addFiles(e.target.files));
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            container.classList.add('drag-over');
+        });
+        container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            container.classList.remove('drag-over');
+            addFiles(e.dataTransfer.files);
+        });
+        clearAllButton.addEventListener('click', () => {
+            selectedFiles = [];
+            renderFiles();
+        });
+        sendButton.addEventListener('click', () => {
+            if (selectedFiles.length > 0 && connection) {
+                sendButton.disabled = true;
+                sendButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending';
+
+                selectedFiles.forEach(file => {
+                    const fileReader = new FileReader(); // a filereader object for reading file contents
+                    fileReader.addEventListener('load', event => {
+                        const buffer = event.target.result; // stores current files data into a buffer variable
+                        connection.send({ name: file.name, type: file.type, size: file.size, data: buffer });
+                    });
+                    fileReader.readAsArrayBuffer(file); // read file contents as binary
+                });
+
+                showMessage("All files sent successfully!", "success");
+
+                setTimeout(() => {
+                    selectedFiles = [];
+                    renderFiles();
+                    sendButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Files';
+                    // sendButton.disabled = false;
+                }, 1000);
+            }
+        });
+
+        function setDarkIcon(state) {
+            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            body.classList.add('dark-mode'); setDarkIcon('dark');
+        } else {
+            setDarkIcon('light');
+        }
+
+        darkModeButton.addEventListener('click', () => {
+            const isDark = body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            setDarkIcon(isDark ? 'dark' : 'light');
+        });
+
+    </script>
+</body>
+
+</html>
