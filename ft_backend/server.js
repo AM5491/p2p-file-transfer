@@ -28,6 +28,8 @@ peerServer.on('disconnect', (client) => { // listens when a peer gets disconnect
 // attaches peerServer mediator with express application
 app.use('/peerjs', peerServer);
 
+app.use(express.static('../'));
+
 // creates a new API endpoint http://peerjs/myapp/generate-id
 app.get('/generate-id', (request, response) => {
     let newId;
@@ -49,7 +51,7 @@ app.get('/check-id/:id', (request, response) => {
 
 // default root endpoint
 app.get('/', (request, response) => {
-    response.send('Your PeerJS Signaling Server is running!'); // https://p2p-file-transfer-app-jdx6.onrender.com/ in a browser, it shows this message.
+    response.sendFile('../index.html', { root: __dirname });
 });
 
 server.listen(PORT, () => {
