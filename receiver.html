@@ -389,7 +389,7 @@
         let receivedFileBlobs = [];
         let receivedFileMetadata = [];
 
-        const SERVER_URL = 'http://192.168.27.174:9000';
+        const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
         if (peerId) {
             startConnection(peerId);
@@ -432,7 +432,12 @@
             let peer = null;
             const maxRetries = 4;
             let retryCount = 0;
-            peer = new Peer({ host: '192.168.27.174', port: 9000, path: '/peerjs/myapp' });
+            peer = new Peer({
+                host: 'https://p2p-file-transfer-app-jdx6.onrender.com',
+                port: 443,
+                path: '/peerjs/myapp',
+                secure: true
+            });
 
             peer.on('open', id => {
                 h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`; attemptConnection();

@@ -5,7 +5,7 @@ const { ExpressPeerServer } = require('peer');
 const cors = require('cors');
 
 const app = express(); // creates an express application
-const PORT = 9000; // defines port number where above express app will run
+const PORT = process.env.PORT || 9000;; // defines port number where above express app will run
 app.use(cors());
 
 const activeIDs = new Set(); // will holds the 6 digit PeerId which are currently in use
@@ -49,9 +49,9 @@ app.get('/check-id/:id', (request, response) => {
 
 // default root endpoint
 app.get('/', (request, response) => {
-    response.send('Your PeerJS Signaling Server is running!'); // http://localhost:9000/ in a browser, it shows this message.
+    response.send('Your PeerJS Signaling Server is running!'); // https://p2p-file-transfer-app-jdx6.onrender.com/ in a browser, it shows this message.
 });
 
 server.listen(PORT, () => {
-    console.log(`PeerJS server is running on http://localhost:${PORT}`);
+    console.log(`PeerJS server is running on https://p2p-file-transfer-app-jdx6.onrender.com`);
 });

@@ -544,7 +544,12 @@
         const peerId = urlParams.get('peerId');
 
         if (peerId) {
-            peer = new Peer(peerId, { host: '192.168.27.174', port: 9000, path: '/peerjs/myapp' });
+            peer = new Peer(peerId, {
+                host: 'https://p2p-file-transfer-app-jdx6.onrender.com',
+                port: 443,
+                path: '/peerjs/myapp',
+                secure: true
+            });
             peer.on('open', id => {
                 h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
 
