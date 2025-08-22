@@ -55,6 +55,12 @@ app.get('/', (request, response) => {
     response.sendFile(__dirname + '/../index.html', { root: __dirname });
 });
 
+// endpoint to handle keep-alive pings
+app.get('/ping', (request, response) => {
+    console.log(`Ping received at ${new Date().toLocaleTimeString()}`);
+    response.status(200).send('pong');
+});
+
 server.listen(PORT, () => {
     console.log(`PeerJS server is running on port ${PORT}`);
 });
