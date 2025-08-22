@@ -28,7 +28,8 @@ peerServer.on('disconnect', (client) => { // listens when a peer gets disconnect
 // attaches peerServer mediator with express application
 app.use('/peerjs', peerServer);
 
-app.use(express.static('../'));
+// Serve static files from the parent directory
+app.use(express.static(__dirname + '/../'));
 
 // creates a new API endpoint http://peerjs/myapp/generate-id
 app.get('/generate-id', (request, response) => {
@@ -51,9 +52,9 @@ app.get('/check-id/:id', (request, response) => {
 
 // default root endpoint
 app.get('/', (request, response) => {
-    response.sendFile('../index.html', { root: __dirname });
+    response.sendFile(__dirname + '/../index.html', { root: __dirname });
 });
 
 server.listen(PORT, () => {
-    console.log(`PeerJS server is running on https://p2p-file-transfer-app-jdx6.onrender.com`);
+    console.log(`PeerJS server is running on port ${PORT}`);
 });

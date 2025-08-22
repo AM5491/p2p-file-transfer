@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         :root {
             --primary: #16db65;
@@ -548,7 +549,8 @@
                 host: 'https://p2p-file-transfer-app-jdx6.onrender.com',
                 port: 443,
                 path: '/peerjs/myapp',
-                secure: true
+                secure: true,
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
             peer.on('open', id => {
                 h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
