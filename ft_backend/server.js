@@ -3,6 +3,7 @@ const http = require('http'); // node.js's built in module to create a http serv
 // mediator from peer package which helps in running a PeerJS signaling server
 const { ExpressPeerServer } = require('peer');
 const cors = require('cors');
+const path = require('path');
 
 const app = express(); // creates an express application
 const PORT = process.env.PORT || 9000;; // defines port number where above express app will run
@@ -28,8 +29,7 @@ peerServer.on('disconnect', (client) => { // listens when a peer gets disconnect
 // attaches peerServer mediator with express application
 app.use('/peerjs', peerServer);
 
-// Serve static files from the parent directory
-app.use(express.static(__dirname + '/../'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // creates a new API endpoint http://peerjs/myapp/generate-id
 app.get('/generate-id', (request, response) => {

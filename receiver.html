@@ -26,6 +26,11 @@
             --file-row-bg-dark: #263342;
             --text-sub: #444f5a;
             --text-sub-dark: #a4b6c3;
+
+            --notification-bg-success: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            --notification-bg-error: linear-gradient(90deg, #ff5f6d, #ff3c4d);
+            --notification-bg-info: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+            --notification-text: #1a252f;
         }
 
         html {
@@ -99,6 +104,11 @@
             --text-main: var(--text-main-dark);
             --file-row-bg: var(--file-row-bg-dark);
             --text-sub: var(--text-sub-dark);
+
+            --notification-bg-success: linear-gradient(90deg, #15b85a, #139d4f);
+            --notification-bg-error: linear-gradient(90deg, #ff5260, #f83846);
+            --notification-bg-info: linear-gradient(92deg, #0081f0, #08a9c9 80%);
+            --notification-text: #fff;
         }
 
         #container {
@@ -389,7 +399,7 @@
         let receivedFileBlobs = [];
         let receivedFileMetadata = [];
 
-        const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
+        const SERVER_URL = window.location.origin;
 
         if (peerId) {
             startConnection(peerId);
@@ -433,7 +443,7 @@
             const maxRetries = 4;
             let retryCount = 0;
             peer = new Peer({
-                host: 'p2p-file-transfer-app-jdx6.onrender.com',
+                host: window.location.hostname,
                 port: 443,
                 path: '/peerjs/myapp',
                 secure: true,

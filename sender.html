@@ -545,7 +545,7 @@
 
         if (peerId) {
             peer = new Peer(peerId, {
-                host: 'p2p-file-transfer-app-jdx6.onrender.com',
+                host: window.location.hostname, // dynamic host
                 port: 443,
                 path: '/peerjs/myapp',
                 secure: true,
