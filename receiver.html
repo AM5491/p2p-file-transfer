@@ -199,6 +199,7 @@
             box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
             color: var(--text-main);
             font-size: 1.08rem;
+            flex-wrap: wrap;
         }
 
         .icon {
@@ -221,6 +222,31 @@
             font-size: 0.93rem;
             color: var(--text-sub);
             white-space: nowrap;
+        }
+
+        .file-progress-container {
+            width: 100%;
+            margin-top: 0.5rem;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            position: relative;
+        }
+
+        .file-progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        .file-progress-text {
+            position: absolute;
+            top: -16px;
+            right: 0;
+            font-size: 0.8rem;
+            color: var(--text-sub);
         }
 
         .action-buttons {
@@ -396,8 +422,9 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const peerId = urlParams.get('peerId');
-        let receivedFileBlobs = [];
-        let receivedFileMetadata = [];
+
+        let incomingFiles = {}; // Stores metadata and chunks
+        let downloadableBlobs = {}; // Stores completed file blobs ready for download
 
         const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -469,30 +496,84 @@
                 connection.on('open', () => {
                     h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
                 });
-                connection.on('data', handleReceivedFile);
+                connection.on('data', handleData);
             }
         }
 
-        function handleReceivedFile(fileData) {
-            if (receivedFileMetadata.length === 0) {
-                incomingFilesList.style.display = "block";
-                actionButtons.style.display = "flex";
-                h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
+        function handleData(message) {
+            const { type, payload } = message;
+            switch (type) {
+                case 'start':
+                    handleFileStart(payload);
+                    break;
+                case 'chunk':
+                    handleFileChunk(payload);
+                    break;
+                case 'end':
+                    handleFileEnd(payload);
+                    break;
             }
-            receivedFileMetadata.push({ name: fileData.name, size: fileData.size });
-            receivedFileBlobs.push(new Blob([fileData.data], { type: fileData.type }));
-            renderReceivedFiles();
         }
 
-        function renderReceivedFiles() {
-            incomingFilesList.innerHTML = "";
-            receivedFileMetadata.forEach(file => incomingFilesList.appendChild(createFileElement(file)));
+        function handleFileStart(payload) {
+            h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
+            incomingFilesList.style.display = 'block';
+            actionButtons.style.display = 'flex';
+
+            incomingFiles[payload.name] = {
+                metadata: payload, // stores file info (name, size, type)
+                chunks: [], // empty array to hold pieces of file
+                receivedSize: 0 // how much data is received so far
+            };
+            const fileElement = createFileElement(payload);
+            incomingFilesList.appendChild(fileElement);
+        }
+
+        function handleFileChunk(payload) {
+            const file = incomingFiles[payload.name];
+            if (!file) return;
+            file.chunks.push(payload.data);
+            file.receivedSize += payload.data.byteLength;
+
+            const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
+            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+            if (fileUiElement) {
+                const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                progressBar.style.width = percent + '%';
+                progressText.textContent = percent + '%';
+            }
+        }
+
+        function handleFileEnd(payload) {
+            const file = incomingFiles[payload.name];
+            if (!file) return;
+
+            const blob = new Blob(file.chunks, { type: file.metadata.type });
+            downloadableBlobs[file.metadata.name] = blob;
+
+            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+            if (fileUiElement) {
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                progressText.textContent = 'Ready!';
+            }
+
+            // Free up memory by deleting the chunks
+            delete incomingFiles[payload.name].chunks;
         }
 
         function createFileElement(file) {
             const div = document.createElement("div");
             div.className = "fileList";
-            div.innerHTML = `<i class="icon fa-solid ${getIconByFileType(file.name)}"></i><span class="filename" title="${file.name}">${file.name}</span><span class="file-size">${formatFileSize(file.size)}</span>`;
+            div.dataset.fileName = file.name;
+            div.innerHTML = `
+                <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                <span class="filename" title="${file.name}">${file.name}</span>
+                <span class="file-size">${formatFileSize(file.size)}</span>
+                <div class="file-progress-container">
+                    <span class="file-progress-text">0%</span>
+                    <div class="file-progress-bar"></div>
+                </div>`;
             return div;
         }
 
@@ -500,21 +581,23 @@
             acceptButton.disabled = true;
             rejectButton.disabled = true;
             acceptButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading';
+
             setTimeout(() => {
-                receivedFileBlobs.forEach((blob, index) => {
+
+                for (const name in downloadableBlobs) {
+                    const blob = downloadableBlobs[name];
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = receivedFileMetadata[index].name;
+                    a.download = name;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     a.remove();
-                });
+                }
 
                 showMessage("Files accepted and downloaded!", "success");
                 resetState();
-                // The resetState() function hides the buttons, so no need to restore their text here
             }, 500);
         });
 
@@ -524,12 +607,15 @@
         });
 
         function resetState() {
-            receivedFileBlobs = [];
-            receivedFileMetadata = [];
-            renderReceivedFiles();
+            incomingFiles = {};
+            downloadableBlobs = {};
+            incomingFilesList.innerHTML = '';
             actionButtons.style.display = 'none';
             incomingFilesList.style.display = 'none';
             h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+            acceptButton.disabled = false;
+            rejectButton.disabled = false;
+            acceptButton.innerHTML = '<i class="fa-solid fa-circle-check"></i>Accept All';
         }
 
         function showMessage(msg, type = 'info') {

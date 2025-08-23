@@ -247,6 +247,13 @@
             font-size: 1.08rem;
         }
 
+        .file-info {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            min-width: 0;
+        }
+
         .icon {
             width: 29px;
             height: 29px;
@@ -271,6 +278,32 @@
             font-size: 0.93rem;
             color: var(--text-sub);
             white-space: nowrap;
+        }
+
+        .file-progress-container {
+            display: none;
+            width: 100%;
+            margin-top: 0.5rem;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            position: relative;
+        }
+
+        .file-progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        .file-progress-text {
+            position: absolute;
+            top: -16px;
+            right: 0;
+            font-size: 0.8rem;
+            color: var(--text-sub);
         }
 
         .delete-button {
@@ -680,9 +713,18 @@
         function createFileElement(file) {
             const div = document.createElement("div");
             div.className = "fileList";
-            div.innerHTML = `<i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
-            <span class="filename" title="${file.name}">${file.name}</span>
-            <span class="file-size">${formatFileSize(file.size)}</span>`;
+            div.dataset.fileName = file.name;
+            div.innerHTML = `
+                <div class="file-info">
+                    <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                    <span class="filename" title="${file.name}">${file.name}</span>
+                    <span class="file-size">${formatFileSize(file.size)}</span>
+                </div>
+                <div class="file-progress-container">
+                    <span class="file-progress-text">0%</span>
+                    <div class="file-progress-bar"></div>
+                </div>`;
+
             const deleteButton = document.createElement("button");
             deleteButton.className = "delete-button";
             deleteButton.innerHTML = "&times;";
@@ -690,7 +732,7 @@
                 selectedFiles = selectedFiles.filter(f => f !== file);
                 renderFiles();
             });
-            div.appendChild(deleteButton);
+            div.querySelector('.file-info').appendChild(deleteButton);
             return div;
         }
 
@@ -734,19 +776,52 @@
             selectedFiles = [];
             renderFiles();
         });
-        sendButton.addEventListener('click', () => {
-            if (selectedFiles.length > 0 && connection) {
+        sendButton.addEventListener('click', async () => {
+            if (selectedFiles.length > 0 && connection && connection.open) {
                 sendButton.disabled = true;
+                clearAllButton.disabled = true;
                 sendButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending';
 
-                selectedFiles.forEach(file => {
-                    const fileReader = new FileReader(); // a filereader object for reading file contents
-                    fileReader.addEventListener('load', event => {
-                        const buffer = event.target.result; // stores current files data into a buffer variable
-                        connection.send({ name: file.name, type: file.type, size: file.size, data: buffer });
+                const CHUNK_SIZE = 16 * 1024; // 16 KB
+
+                for (const file of selectedFiles) {
+                    const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
+                    const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                    const progressText = fileUiElement.querySelector('.file-progress-text');
+                    const progressContainer = fileUiElement.querySelector('.file-progress-container');
+
+                    progressContainer.style.display = "block";
+
+                    // send file metadata first
+                    connection.send({
+                        type: "start",
+                        payload: { name: file.name, size: file.size, type: file.type }
                     });
-                    fileReader.readAsArrayBuffer(file); // read file contents as binary
-                });
+
+                    // send file in chunks
+                    let offset = 0;
+                    while (offset < file.size) {
+                        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+                        const buffer = await chunk.arrayBuffer();
+
+                        connection.send({
+                            type: "chunk",
+                            payload: { name: file.name, data: buffer }
+                        });
+
+                        offset += chunk.size;
+                        const percent = Math.round((offset / file.size) * 100);
+                        progressBar.style.width = percent + "%";
+                        progressText.textContent = percent + "%";
+                    }
+
+                    // end of file transfer
+                    connection.send({
+                        type: "end",
+                        payload: { name: file.name }
+                    });
+                    progressText.textContent = "Sent!";
+                }
 
                 showMessage("All files sent successfully!", "success");
 
@@ -754,7 +829,7 @@
                     selectedFiles = [];
                     renderFiles();
                     sendButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Files';
-                    // sendButton.disabled = false;
+                    clearAllButton.disabled = false;
                 }, 1000);
             }
         });
