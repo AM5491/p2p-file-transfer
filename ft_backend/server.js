@@ -29,7 +29,7 @@ peerServer.on('disconnect', (client) => { // listens when a peer gets disconnect
 // attaches peerServer mediator with express application
 app.use('/peerjs', peerServer);
 
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // creates a new API endpoint http://peerjs/myapp/generate-id
 app.get('/generate-id', (request, response) => {
@@ -51,8 +51,8 @@ app.get('/check-id/:id', (request, response) => {
 });
 
 // default root endpoint
-app.get('/', (request, response) => {
-    response.sendFile(path.join(__dirname, 'index.html'));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // endpoint to handle keep-alive pings
