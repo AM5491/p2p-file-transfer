@@ -399,7 +399,7 @@
         let receivedFileBlobs = [];
         let receivedFileMetadata = [];
 
-        const SERVER_URL = 'https://p2p-file-transfer-production-2f59.up.railway.app';
+        const SERVER_URL = 'https://p2p-file-transfer-app.up.railway.app';
 
         if (peerId) {
             startConnection(peerId);
@@ -443,7 +443,7 @@
             const maxRetries = 4;
             let retryCount = 0;
             peer = new Peer({
-                host: 'p2p-file-transfer-production-2f59.up.railway.app',
+                host: 'p2p-file-transfer-app.up.railway.app',
                 port: 443,
                 path: '/peerjs/myapp',
                 secure: true,
