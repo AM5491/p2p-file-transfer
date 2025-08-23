@@ -29,7 +29,7 @@ peerServer.on('disconnect', (client) => { // listens when a peer gets disconnect
 // attaches peerServer mediator with express application
 app.use('/peerjs', peerServer);
 
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, '..')));
 
 // creates a new API endpoint http://peerjs/myapp/generate-id
 app.get('/generate-id', (request, response) => {
