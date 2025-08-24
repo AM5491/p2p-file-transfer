@@ -483,6 +483,10 @@
                 attemptConnection();
             });
             peer.on('error', err => {
+                if (Object.keys(incomingFiles).length > 0) {
+                    console.warn("Non-fatal PeerJS error ignored during transfer:", err);
+                    return; // file transferring is active so don't show any connection error from signaling server
+                }
                 if (err.type === 'peer-unavailable' && retryCount < maxRetries) {
                     retryCount++;
                     h2.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Sender not found. Retrying... (${retryCount}/${maxRetries})`;
