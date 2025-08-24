@@ -291,16 +291,18 @@
         }
 
         @keyframes marquee-effect {
-            0% {
+
+            0%,
+            10% {
                 transform: translateX(0%);
             }
 
-            45% {
-                transform: translateX(-110%);
+            50% {
+                transform: translateX(-100%);
             }
 
-            50% {
-                transform: translateX(110%);
+            51% {
+                transform: translateX(100%);
             }
 
             100% {
