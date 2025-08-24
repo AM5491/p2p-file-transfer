@@ -286,20 +286,25 @@
             display: inline-block;
             color: var(--text-main);
             font-size: 1.08rem;
-            animation: none;
+            animation: marquee-effect 10s linear infinite;
+            white-space: nowrap;
         }
 
-        .filename-container:hover .filename {
-            animation: scroll-text 8s linear infinite;
-        }
-
-        @keyframes scroll-text {
-            from {
+        @keyframes marquee-effect {
+            0% {
                 transform: translateX(0%);
             }
 
-            to {
-                transform: translateX(-100%);
+            45% {
+                transform: translateX(-110%);
+            }
+
+            50% {
+                transform: translateX(110%);
+            }
+
+            100% {
+                transform: translateX(0%);
             }
         }
 
