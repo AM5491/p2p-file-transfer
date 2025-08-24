@@ -269,6 +269,7 @@
             width: 100%;
             overflow: hidden;
             white-space: nowrap;
+            position: relative;
         }
 
         .icon {
@@ -286,7 +287,7 @@
             display: inline-block;
             color: var(--text-main);
             font-size: 1.08rem;
-            animation: marquee-effect 10s linear infinite;
+            animation: marquee-effect 12s linear infinite;
             white-space: nowrap;
         }
 
@@ -295,18 +296,27 @@
             0%,
             10% {
                 transform: translateX(0%);
+                opacity: 1;
+            }
+
+            45% {
+                transform: translateX(-100%);
+                opacity: 0;
             }
 
             50% {
-                transform: translateX(-100%);
+                transform: translateX(100%);
+                opacity: 0;
             }
 
-            51% {
-                transform: translateX(100%);
+            60% {
+                transform: translateX(80%);
+                opacity: 0.4;
             }
 
             100% {
                 transform: translateX(0%);
+                opacity: 1;
             }
         }
 
