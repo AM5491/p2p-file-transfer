@@ -202,6 +202,24 @@
             flex-wrap: wrap;
         }
 
+        .file-info {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .file-details {
+            flex-grow: 1;
+            min-width: 0;
+            margin-left: 1.12rem;
+        }
+
+        .filename-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
         .icon {
             width: 29px;
             height: 29px;
@@ -210,18 +228,36 @@
         }
 
         .filename {
-            flex: 1 1 0;
-            min-width: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-right: 1rem;
+            display: inline-block;
+            color: var(--text-main);
+            font-size: 1.08rem;
+        }
+
+        .filename-container:hover .filename {
+            animation: scroll-text 8s linear infinite;
+        }
+
+        @keyframes scroll-text {
+            from {
+                transform: translateX(0%);
+            }
+
+            to {
+                transform: translateX(-100%);
+            }
+        }
+
+        .file-meta-row {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-top: 4px;
         }
 
         .file-size {
             font-size: 0.93rem;
             color: var(--text-sub);
-            white-space: nowrap;
+            text-align: left;
         }
 
         .file-progress-container {
@@ -578,14 +614,24 @@
             const div = document.createElement("div");
             div.className = "fileList";
             div.dataset.fileName = file.name;
+
             div.innerHTML = `
-                <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
-                <span class="filename" title="${file.name}">${file.name}</span>
-                <span class="file-size">${formatFileSize(file.size)}</span>
+                <div class="file-info">
+                    <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                    <div class="file-details">
+                        <div class="filename-container">
+                            <span class="filename" title="${file.name}">${file.name}</span>
+                        </div>
+                        <div class="file-meta-row">
+                            <span class="file-size">${formatFileSize(file.size)}</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="file-progress-container">
                     <span class="file-progress-text">0%</span>
                     <div class="file-progress-bar"></div>
-                </div>`;
+                </div>
+            `;
             return div;
         }
 

@@ -237,21 +237,38 @@
 
         .fileList {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             border-radius: 10px;
             padding: .73rem 1.1rem;
             margin-bottom: .48rem;
             background: var(--file-row-bg);
             box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
-            color: var(--text-main);
-            font-size: 1.08rem;
+        }
+
+        .file-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
         }
 
         .file-info {
             display: flex;
             align-items: center;
+            width: 100%;
+        }
+
+        .file-details {
             flex-grow: 1;
             min-width: 0;
+            margin-left: 1.12rem;
+        }
+
+        .filename-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
         }
 
         .icon {
@@ -266,18 +283,30 @@
         }
 
         .filename {
-            flex: 1 1 0;
-            min-width: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-right: 1rem;
+            display: inline-block;
+            color: var(--text-main);
+            font-size: 1.08rem;
+            animation: none;
+        }
+
+        .filename-container:hover .filename {
+            animation: scroll-text 8s linear infinite;
+        }
+
+        @keyframes scroll-text {
+            from {
+                transform: translateX(0%);
+            }
+
+            to {
+                transform: translateX(-100%);
+            }
         }
 
         .file-size {
             font-size: 0.93rem;
             color: var(--text-sub);
-            white-space: nowrap;
+            text-align: left;
         }
 
         .file-progress-container {
@@ -307,13 +336,12 @@
         }
 
         .delete-button {
-            margin-left: auto;
             background-color: transparent;
             color: #aaa;
             border: none;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -509,7 +537,6 @@
         #cancelButton {
             background: var(--danger);
             color: #fff;
-            width: 100%;
         }
     </style>
 </head>
@@ -552,8 +579,6 @@
         </div>
 
         <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
-
-    </div>
 
     </div>
 
@@ -741,25 +766,37 @@
             const div = document.createElement("div");
             div.className = "fileList";
             div.dataset.fileName = file.name;
+
             div.innerHTML = `
                 <div class="file-info">
                     <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
-                    <span class="filename" title="${file.name}">${file.name}</span>
-                    <span class="file-size">${formatFileSize(file.size)}</span>
+                    <div class="file-details">
+                        <div class="filename-container">
+                            <span class="filename" title="${file.name}">${file.name}</span>
+                        </div>
+                        <div class="file-meta-row">
+                            <span class="file-size">${formatFileSize(file.size)}</span>
+                            </div>
+                    </div>
                 </div>
                 <div class="file-progress-container" style="display: none;">
                     <span class="file-progress-text">0%</span>
                     <div class="file-progress-bar"></div>
-                </div>`;
+                </div>
+            `;
 
             const deleteButton = document.createElement("button");
             deleteButton.className = "delete-button";
             deleteButton.innerHTML = "&times;";
-            deleteButton.addEventListener('click', () => {
+            deleteButton.title = "Remove file";
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent any parent click events
                 selectedFiles = selectedFiles.filter(f => f !== file);
                 renderFiles();
             });
-            div.querySelector('.file-info').appendChild(deleteButton);
+
+            div.querySelector('.file-meta-row').appendChild(deleteButton);
+
             return div;
         }
 
