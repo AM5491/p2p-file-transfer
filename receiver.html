@@ -425,6 +425,8 @@
 
         let incomingFiles = {}; // Stores metadata and chunks
         let downloadableBlobs = {}; // Stores completed file blobs ready for download
+        let connection = null;
+        let peer = null;
 
         const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -466,7 +468,6 @@
         }
 
         function startConnection(senderId) {
-            let peer = null;
             const maxRetries = 4;
             let retryCount = 0;
             peer = new Peer({
@@ -478,7 +479,8 @@
             });
 
             peer.on('open', id => {
-                h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`; attemptConnection();
+                h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`;
+                attemptConnection();
             });
             peer.on('error', err => {
                 if (err.type === 'peer-unavailable' && retryCount < maxRetries) {
@@ -492,11 +494,13 @@
             });
 
             function attemptConnection() {
-                const connection = peer.connect(senderId);
-                connection.on('open', () => {
-                    h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
-                });
+                connection = peer.connect(senderId);
+                connection.on('open', () => h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...');
                 connection.on('data', handleData);
+                connection.on('close', () => {
+                    showMessage("Sender has disconnected.", "info");
+                    resetState();
+                });
             }
         }
 
@@ -511,6 +515,10 @@
                     break;
                 case 'end':
                     handleFileEnd(payload);
+                    break;
+                case 'cancel':
+                    showMessage("Sender cancelled the transfer.", "error");
+                    resetState();
                     break;
             }
         }
@@ -601,10 +609,16 @@
             }, 500);
         });
 
-        rejectButton.addEventListener('click', () => {
+        function rejectTransfer() {
+            if (connection && connection.open) {
+                connection.send({ type: "cancel" }); // Notify sender
+                connection.close();
+            }
             showMessage("Files rejected!", "error");
             resetState();
-        });
+        }
+
+        rejectButton.addEventListener('click', rejectTransfer);
 
         function resetState() {
             incomingFiles = {};
@@ -665,6 +679,9 @@
         }
 
         backButton.addEventListener('click', () => {
+            if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
+                rejectTransfer();
+            }
             body.classList.add('fade-out');
             setTimeout(() => {
                 window.location.href = 'index.html';

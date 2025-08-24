@@ -505,6 +505,12 @@
             border-color: var(--primary);
             transform: scale(1.1);
         }
+
+        #cancelButton {
+            background: var(--danger);
+            color: #fff;
+            width: 100%;
+        }
     </style>
 </head>
 
@@ -540,11 +546,14 @@
             <div class="action-buttons">
                 <button id="clearAllButton"><i class="fa-solid fa-trash"></i> Clear All</button>
                 <button id="sendButton" disabled><i class="fa-solid fa-paper-plane"></i> Send Files</button>
+                <button id="cancelButton" style="display: none;"><i class="fa-solid fa-times-circle"></i> Cancel
+                    Transfer</button>
             </div>
-
         </div>
 
         <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
+    </div>
 
     </div>
 
@@ -561,6 +570,7 @@
         const fileSummary = document.getElementById("fileSummary");
         const clearAllButton = document.getElementById("clearAllButton");
         const sendButton = document.getElementById("sendButton");
+        const cancelButton = document.getElementById("cancelButton");
         const backButton = document.querySelector('.backButton');
         const darkModeButton = document.getElementById("darkModeButton");
         const message = document.getElementById("message");
@@ -573,6 +583,7 @@
         let peer = null;
         let connection = null;
         let selectedFiles = [];
+        let isTransferring = false; // Flag to control the transfer loop
         const urlParams = new URLSearchParams(window.location.search);
         const peerId = urlParams.get('peerId');
 
@@ -594,18 +605,29 @@
                 new QRCode(qrCodeContainer, { text: receiverUrl, width: 160, height: 160 });
                 qrCodeContainer.style.display = 'block';
 
-                copyIdButton.addEventListener('click', () => {
-                    copyText(id);
-                });
+                copyIdButton.addEventListener('click', () => copyText(id));
             });
             peer.on('connection', conn => {
                 connection = conn;
                 connectionInfoDiv.innerHTML = `<h2><i class="fa-solid fa-link"></i> Receiver Connected!</h2>`;
                 fileSelectionArea.classList.add('visible');
+
+                connection.on('data', (data) => {
+                    if (data.type === 'cancel') {
+                        cancelTransfer();
+                        showMessage("Receiver rejected the transfer.", "error");
+                    }
+                });
+
+                connection.on('close', () => {
+                    showMessage("Receiver has disconnected.", "info");
+                    isTransferring = false; // Stop any ongoing transfer
+                    resetUI();
+                });
             });
             peer.on('error', err => {
                 if (err.type === 'network' && connection && connection.open) {
-                    console.warn('Harmless signaling server disconnect.');
+                    console.warn('Signaling server disconnected.');
                     return;
                 }
                 alert('An error occurred with PeerJS: ' + err);
@@ -698,11 +720,16 @@
 
         function updateSummary() {
             if (selectedFiles.length === 0) {
-                filesDisplayArea.style.display = "none"; fileSummary.style.display = "none";
-                clearAllButton.style.display = "none"; sendButton.style.display = "none";
+                filesDisplayArea.style.display = "none";
+                fileSummary.style.display = "none";
+                clearAllButton.style.display = "none";
+                sendButton.style.display = "none";
                 sendButton.disabled = true;
             } else {
-                let totalSize = selectedFiles.reduce((acc, file) => acc + file.size, 0);
+                let totalSize = 0;
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    totalSize += selectedFiles[i].size;
+                }
                 fileSummary.style.display = "block";
                 fileSummary.textContent = `${selectedFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
                 clearAllButton.style.display = "block"; sendButton.style.display = "block";
@@ -720,7 +747,7 @@
                     <span class="filename" title="${file.name}">${file.name}</span>
                     <span class="file-size">${formatFileSize(file.size)}</span>
                 </div>
-                <div class="file-progress-container">
+                <div class="file-progress-container" style="display: none;">
                     <span class="file-progress-text">0%</span>
                     <div class="file-progress-bar"></div>
                 </div>`;
@@ -754,7 +781,28 @@
             renderFiles();
         }
 
+        function resetUI() {
+            isTransferring = false;
+            cancelButton.style.display = 'none';
+            updateSummary();
+        }
+
+        function cancelTransfer() {
+            if (isTransferring) {
+                isTransferring = false; // This will stop the sending loop
+                if (connection && connection.open) {
+                    connection.send({ type: "cancel" }); // Notify receiver
+                    connection.close(); // Close the connection
+                }
+                showMessage("Transfer cancelled", "error");
+                resetUI();
+            }
+        }
+
         backButton.addEventListener('click', () => {
+            if (isTransferring) {
+                cancelTransfer();
+            }
             body.classList.add('fade-out');
             setTimeout(() => {
                 window.location.href = 'index.html';
@@ -778,13 +826,16 @@
         });
         sendButton.addEventListener('click', async () => {
             if (selectedFiles.length > 0 && connection && connection.open) {
-                sendButton.disabled = true;
-                clearAllButton.disabled = true;
-                sendButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending';
+                isTransferring = true;
+                sendButton.style.display = "none";
+                clearAllButton.style.display = "none";
+                cancelButton.style.display = 'block';
 
-                const CHUNK_SIZE = 16 * 1024; // 16 KB
+                const CHUNK_SIZE = 128 * 1024; // 128 KB
 
                 for (const file of selectedFiles) {
+                    if (!isTransferring) break; // Check if transfer was cancelled before starting a new file
+
                     const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
                     const progressBar = fileUiElement.querySelector('.file-progress-bar');
                     const progressText = fileUiElement.querySelector('.file-progress-text');
@@ -816,21 +867,23 @@
                     }
 
                     // end of file transfer
-                    connection.send({
-                        type: "end",
-                        payload: { name: file.name }
-                    });
-                    progressText.textContent = "Sent!";
+                    if (isTransferring) { // Only send 'end' if not cancelled
+                        connection.send({
+                            type: 'end',
+                            payload: { name: file.name }
+                        });
+                        progressText.textContent = 'Sent!';
+                    }
                 }
 
-                showMessage("All files sent successfully!", "success");
-
-                setTimeout(() => {
-                    selectedFiles = [];
-                    renderFiles();
-                    sendButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Files';
-                    clearAllButton.disabled = false;
-                }, 1000);
+                if (isTransferring) { // If loop finished without cancellation
+                    showMessage("All files sent successfully!", "success");
+                    setTimeout(() => {
+                        selectedFiles = [];
+                        renderFiles();
+                        resetUI();
+                    }, 1500);
+                }
             }
         });
 
