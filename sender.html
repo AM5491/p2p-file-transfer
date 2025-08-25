@@ -789,6 +789,13 @@
                     if (data.type === 'cancel') {
                         cancelTransfer();
                         showMessage("Receiver rejected the transfer.", "error");
+
+                        setTimeout(() => {
+                            body.classList.add('fade-out');
+                            setTimeout(() => {
+                                window.location.href = 'index.html';
+                            }, 350);
+                        }, 1000);
                     }
                 });
 
@@ -796,6 +803,13 @@
                     showMessage("Receiver has disconnected.", "info");
                     isTransferring = false; // Stop any ongoing transfer
                     resetUI();
+
+                    setTimeout(() => {
+                        body.classList.add('fade-out');
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 350);
+                    }, 1000);
                 });
             });
             peer.on('error', err => {
