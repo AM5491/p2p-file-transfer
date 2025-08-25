@@ -7,22 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <script>
-        function setDarkIcon(state) {
-            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
-        }
-
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
-            setDarkIcon('dark');
-        } else {
-            setDarkIcon('light');
         }
-
-        darkModeButton.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark-mode');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            setDarkIcon(isDark ? 'dark' : 'light');
-        });    
     </script>
 
     <link rel="icon" type="image/png" href="favicon.ico">
@@ -61,7 +48,7 @@
             /* overflow: hidden; */
             overflow-y: auto;
             /* disable scrolling beyond content */
-            overscroll-behavior: none;
+            overscroll-behavior-y: contain;
             background: var(--page-bg);
             scrollbar-width: none;
             /* For Firefox */
@@ -75,7 +62,6 @@
         }
 
         body {
-            background: var(--page-bg);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -120,7 +106,7 @@
             }
         }
 
-        body.dark-mode {
+        html.dark-mode {
             background: var(--page-bg-dark);
             --file-row-bg: var(--file-row-bg-dark);
             --text-main: var(--text-main-dark);
@@ -151,7 +137,7 @@
             gap: 1.2rem;
         }
 
-        body.dark-mode #container {
+        html.dark-mode #container {
             border: 1.2px solid rgba(255, 255, 255, 0.11);
         }
 
@@ -177,7 +163,7 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
         }
 
-        body.dark-mode #connection-info {
+        html.dark-mode #connection-info {
             background: rgba(4, 9, 14, 0.2);
         }
 
@@ -226,7 +212,7 @@
             transition: all .2s;
         }
 
-        body.dark-mode #file-label {
+        html.dark-mode #file-label {
             border-color: #63dea6;
         }
 
@@ -539,7 +525,7 @@
             transform: translateY(-3px);
         }
 
-        body.dark-mode .backButton {
+        html.dark-mode .backButton {
             background: rgba(34, 50, 65, 0.85);
             color: var(--text-main-dark);
         }
@@ -569,12 +555,12 @@
             color: #fff;
         }
 
-        body.dark-mode #darkModeButton {
+        html.dark-mode #darkModeButton {
             background: #3b557b;
             color: #ffe27a;
         }
 
-        body.dark-mode #darkModeButton:hover {
+        html.dark-mode #darkModeButton:hover {
             background: #212936;
             color: #fff;
         }
@@ -1183,6 +1169,22 @@
                     }, 1500);
                 }
             }
+        });
+
+        function setDarkIcon(state) {
+            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            setDarkIcon('dark');
+        } else {
+            setDarkIcon('light');
+        }
+
+        darkModeButton.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            setDarkIcon(isDark ? 'dark' : 'light');
         });
 
     </script>
