@@ -40,9 +40,8 @@
             scroll-behavior: smooth;
             scrollbar-gutter: stable;
             height: 100%;
-            overflow-y: auto;
-            overscroll-behavior-y: contain;
-            background: var(--page-bg);
+            overflow-y: visible;
+            background: #f0f4f9;
             scrollbar-width: none;
             /* For Firefox */
             -ms-overflow-style: none;
@@ -54,11 +53,16 @@
             /* For Chrome, Safari, and Opera */
         }
 
+        html.dark-mode body {
+            background: var(--page-bg-dark);
+        }
+
         body {
             min-height: 100vh;
             margin: 0;
             display: flex;
             justify-content: center;
+            background: var(--page-bg);
             align-items: center;
             font-family: 'Poppins', sans-serif;
             opacity: 0;
@@ -76,9 +80,13 @@
         }
 
         html.dark-mode {
-            background: var(--page-bg-dark);
+            background: #223241;
             --text-main: var(--text-main-dark);
             --text-sub: var(--text-sub-dark);
+        }
+
+        html.dark-mode body {
+            background: var(--page-bg-dark);
         }
 
         @keyframes fadeInAnimation {
