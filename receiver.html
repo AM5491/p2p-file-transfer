@@ -353,6 +353,7 @@
             padding: 0.68rem 2.1rem;
             cursor: pointer;
             font-size: .98rem;
+            margin-top: 2rem;
         }
 
         body.dark-mode .backButton {
@@ -769,16 +770,18 @@
             }, 500);
         });
 
-        function rejectTransfer() {
+        function disconnectTransfer() {
             if (connection && connection.open) {
                 connection.send({ type: "cancel" }); // Notify sender
                 connection.close();
             }
-            showMessage("Files rejected!", "error");
             resetState();
         }
 
-        rejectButton.addEventListener('click', rejectTransfer);
+        rejectButton.addEventListener('click', () => {
+            showMessage("Files rejected!", "error");
+            resetState();
+        });
 
         function resetState() {
             incomingFiles = {};
@@ -789,7 +792,6 @@
             h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
             acceptButton.disabled = false;
             rejectButton.disabled = false;
-            acceptButton.innerHTML = '<i class="fa-solid fa-circle-check"></i>Accept All';
         }
 
         function showMessage(msg, type = 'info') {
@@ -840,7 +842,7 @@
 
         backButton.addEventListener('click', () => {
             if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
-                rejectTransfer();
+                disconnectTransfer();
             }
             body.classList.add('fade-out');
             setTimeout(() => {
