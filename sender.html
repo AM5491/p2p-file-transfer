@@ -5,6 +5,26 @@
     <title>P2P File Transfer - Sending</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        function setDarkIcon(state) {
+            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+            setDarkIcon('dark');
+        } else {
+            setDarkIcon('light');
+        }
+
+        darkModeButton.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            setDarkIcon(isDark ? 'dark' : 'light');
+        });    
+    </script>
+
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -697,7 +717,7 @@
 
             .filename {
                 font-size: 0.95rem;
-                animation: marquee-effect-small 12s linear infinite;
+                animation: marquee-effect-small 8s linear infinite;
             }
 
             .file-size {
@@ -1163,22 +1183,6 @@
                     }, 1500);
                 }
             }
-        });
-
-        function setDarkIcon(state) {
-            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
-        }
-
-        if (localStorage.getItem('theme') === 'dark') {
-            body.classList.add('dark-mode'); setDarkIcon('dark');
-        } else {
-            setDarkIcon('light');
-        }
-
-        darkModeButton.addEventListener('click', () => {
-            const isDark = body.classList.toggle('dark-mode');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            setDarkIcon(isDark ? 'dark' : 'light');
         });
 
     </script>

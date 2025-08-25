@@ -5,6 +5,26 @@
     <title>P2P File Transfer - Menu</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        function setDarkIcon(state) {
+            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+            setDarkIcon('dark');
+        } else {
+            setDarkIcon('light');
+        }
+
+        darkModeButton.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            setDarkIcon(isDark ? 'dark' : 'light');
+        });    
+    </script>
+
     <link rel="icon" type="image/png" href="favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -308,6 +328,7 @@
     </div>
     <script>
         "use strict";
+
         const sendPageButton = document.getElementById("sendPageButton");
         const receivePageButton = document.getElementById("receivePageButton");
         const darkModeButton = document.getElementById("darkModeButton");
@@ -356,23 +377,6 @@
             setTimeout(() => {
                 navigateWithAnimation('receiver.html');
             }, 500);
-        });
-
-        function setDarkIcon(state) {
-            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
-        }
-
-        if (localStorage.getItem('theme') === 'dark') {
-            body.classList.add('dark-mode');
-            setDarkIcon('dark');
-        } else {
-            setDarkIcon('light');
-        }
-
-        darkModeButton.addEventListener('click', () => {
-            const isDark = body.classList.toggle('dark-mode');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            setDarkIcon(isDark ? 'dark' : 'light');
         });
 
     </script>
