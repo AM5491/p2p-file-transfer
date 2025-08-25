@@ -116,7 +116,7 @@
             width: 94vw;
             max-width: 440px;
             padding: 2.5rem;
-            margin: 2.5rem 0;
+            margin: 1rem 1rem 1rem 1rem;
             border-radius: 2rem;
             background: var(--bg-glass);
             border: 1.2px solid rgba(220, 220, 220, 0.24);
@@ -143,6 +143,7 @@
             font-weight: 600;
             color: var(--text-main);
             text-align: center;
+            margin-top: 2.5rem;
         }
 
         #manual-entry {
@@ -428,6 +429,97 @@
 
         #message.info {
             background: var(--notification-bg-info);
+        }
+
+        @media (max-width: 600px) {
+            #container {
+                padding: 2rem 1.5rem;
+                gap: 1rem;
+                width: 90vw;
+                min-width: auto;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+                margin-top: 2.5rem;
+            }
+
+            #peerIdInput {
+                font-size: 1rem;
+                width: 90%;
+            }
+
+            #connectButton {
+                font-size: 1rem;
+                padding: 0.6rem 2rem;
+            }
+
+            .fileList {
+                padding: .6rem .8rem;
+            }
+
+            .filename {
+                font-size: 1rem;
+            }
+
+            .file-size {
+                font-size: 0.85rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 0.8rem;
+                margin-top: 0.5rem;
+            }
+
+            .action-buttons button {
+                width: 100%;
+                font-size: 1rem;
+                padding: 0.8rem 0;
+            }
+
+            .backButton {
+                padding: 0.6rem 1.8rem;
+                font-size: 0.9rem;
+            }
+
+            #darkModeButton {
+                top: 1rem;
+                right: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            #container {
+                max-width: 500px;
+            }
+
+            h2 {
+                font-size: 1.4rem;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            html {
+                font-size: 18px;
+            }
+
+            #container {
+                max-width: 550px;
+            }
+        }
+
+        @media (min-width: 2200px) {
+            html {
+                font-size: 22px;
+            }
+
+            #container {
+                max-width: 650px;
+            }
         }
     </style>
 </head>
