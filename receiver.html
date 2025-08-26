@@ -365,20 +365,20 @@
 
         .file-meta-row {
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
             margin-top: 4px;
         }
 
         .file-size {
-            font-size: 0.93rem;
+            font-size: 1rem;
             color: var(--text-sub);
             text-align: left;
         }
 
         .file-progress-container {
             width: 100%;
-            margin-top: 0.5rem;
+            margin-top: 1.1rem;
             background-color: #e0e0e0;
             border-radius: 5px;
             height: 8px;
@@ -395,9 +395,9 @@
 
         .file-progress-text {
             position: absolute;
-            top: -16px;
-            right: 0;
-            font-size: 0.8rem;
+            top: -22px;
+            left: 0;
+            font-size: 1rem;
             color: var(--text-sub);
         }
 
@@ -500,8 +500,9 @@
             opacity: 0;
             z-index: 1000;
             color: var(--notification-text);
-            padding: 0.8rem 1.5rem;
-            font-weight: 600;
+            text-align: center;
+            padding: 1rem;
+            font-weight: 550;
             border-radius: 50px;
             pointer-events: none;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
@@ -593,6 +594,66 @@
         #confirmNo:hover {
             background: #bbb;
             color: #111;
+        }
+
+        #peerIdInput.error {
+            border-color: var(--danger) !important;
+            animation: flashRed 0.6s ease 0s 2;
+        }
+
+        @keyframes flashRed {
+
+            0%,
+            100% {
+                border-color: var(--danger);
+                box-shadow: 0 0 6px var(--danger);
+            }
+
+            50% {
+                border-color: transparent;
+                box-shadow: none;
+            }
+        }
+
+        .tooltip {
+            position: fixed;
+            z-index: 9999;
+            left: 50%;
+            top: 5%;
+            transform: translate(-50%, -50%);
+            margin-top: 0.4rem;
+            padding: 0.45rem 0.45rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 6px;
+            background: rgb(189, 201, 209);
+            color: #000000;
+            text-align: center;
+            max-width: 260px;
+            white-space: normal;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            pointer-events: none;
+        }
+
+        .tooltip.show {
+            opacity: 1;
+            transform: translate(-50%, 5px);
+        }
+
+        html.dark-mode .tooltip {
+            background: rgb(71, 95, 119);
+            color: #ffffff;
+        }
+
+        .download-file,
+        .delete-file {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: inherit;
+            font-size: 1rem;
         }
 
         @media (max-width: 600px) {
@@ -726,14 +787,15 @@
 
         <div id="manual-entry">
             <input type="text" id="peerIdInput" maxlength="6" placeholder="Enter 6-digit code">
+            <div class="tooltip">Tap the box to type code</div>
             <button id="connectButton"><i class="fa-solid fa-link"></i> Connect</button>
         </div>
 
         <div id="incomingFilesList" class="file-list-container"></div>
 
         <div class="action-buttons">
-            <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
             <button class="reject"><i class="fa-solid fa-circle-xmark"></i>Reject All</button>
+            <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
         </div>
 
         <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
@@ -768,6 +830,7 @@
         const msg = document.getElementById("confirmMessage");
         const yesBtn = document.getElementById("confirmYes");
         const noBtn = document.getElementById("confirmNo");
+        const tooltip = peerIdInput.nextElementSibling;
 
         body.classList.add('fade-in');
 
@@ -786,7 +849,39 @@
         } else {
             h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
             manualEntryDiv.style.display = 'flex';
+
             peerIdInput.focus();
+
+            setTimeout(() => {
+                peerIdInput.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 200);
+
+            if (!peerIdInput.value.trim()) {
+                tooltip.classList.add("show");
+                tooltip.style.opacity = "1";
+            }
+
+            peerIdInput.addEventListener("input", () => {
+                tooltip.style.opacity = "0";
+                setTimeout(() => {
+                    tooltip.classList.remove("show");
+                }, 400);
+            });
+
+            peerIdInput.addEventListener("focus", () => {
+                tooltip.style.opacity = "0";
+                setTimeout(() => {
+                    tooltip.classList.remove("show");
+                }, 400);
+            });
+
+            peerIdInput.addEventListener("blur", () => {
+                if (!peerIdInput.value.trim()) {
+                    tooltip.classList.add("show");
+                    tooltip.style.opacity = "1";
+                }
+            });
+
             connectButton.addEventListener('click', async () => {
                 const enteredId = peerIdInput.value.trim();
                 if (/^\d{6}$/.test(enteredId)) {
@@ -801,7 +896,7 @@
                             manualEntryDiv.style.display = "none";
                             startConnection(enteredId);
                         } else {
-                            showMessage("Sender with this code not found. Please check the code and try again.", "error");
+                            markInputError("Enter a correct 6 digit peer id");
                             connectButton.disabled = false;
                             connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
                         }
@@ -812,7 +907,7 @@
                         connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
                     }
                 } else {
-                    showMessage('Please enter a valid 6-digit code.', "info");
+                    markInputError("Enter a correct 6 digit peer id");
                     return;
                 }
             });
@@ -906,6 +1001,8 @@
                 progressBar.style.width = percent + '%';
                 progressText.textContent = percent + '%';
             }
+            // after handling a chunk send ack to sender
+            connection.send({ type: "ack", name: payload.name, index: payload.index });
         }
 
         function handleFileEnd(payload) {
@@ -918,7 +1015,7 @@
             const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
             if (fileUiElement) {
                 const progressText = fileUiElement.querySelector('.file-progress-text');
-                progressText.textContent = 'Ready!';
+                progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
             }
 
             // Free up memory by deleting the chunks
@@ -964,6 +1061,8 @@
                         </div>
                         <div class="file-meta-row">
                             <span class="file-size">${formatFileSize(file.size)}</span>
+                            <button class="download-file" title="Download this file"><i class="fa-solid fa-download" style="color:var(--primary);"></i></button>
+                            <button class="delete-file" title="Delete this file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
                         </div>
                     </div>
                 </div>
@@ -972,9 +1071,49 @@
                     <div class="file-progress-bar"></div>
                 </div>
             `;
+
+            const deleteBtn = div.querySelector(".delete-file");
+            deleteBtnEvent(deleteBtn, file, div);
+
+            const downloadBtn = div.querySelector(".download-file");
+            downloadBtnEvent(downloadBtn, file);
+
             return div;
         }
 
+        function deleteBtnEvent(deleteBtn, file, div) {
+            deleteBtn.addEventListener("click", () => {
+                delete downloadableBlobs[file.name];
+                delete incomingFiles[file.name];
+                div.remove();
+                showMessage(`File "${file.name}" deleted`, "info");
+
+                if (incomingFilesList.children.length === 0) {
+                    actionButtons.style.display = 'none';
+                    incomingFilesList.style.display = 'none';
+                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                }
+            });
+        }
+
+        function downloadBtnEvent(downloadBtn, file) {
+            downloadBtn.addEventListener("click", () => {
+                const blob = downloadableBlobs[file.name];
+                if (!blob) {
+                    showMessage("File not ready yet!", "info");
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = file.name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showMessage(`File "${file.name}" downloaded`, "success");
+            });
+        }
         acceptButton.addEventListener('click', () => {
             acceptButton.disabled = true;
             rejectButton.disabled = true;
@@ -1025,6 +1164,20 @@
             rejectButton.disabled = false;
         }
 
+        function markInputError(msgText) {
+            peerIdInput.classList.remove('error'); // reset animation
+            void peerIdInput.offsetWidth; // recalculate the width of peerIdInput
+            peerIdInput.classList.add('error');
+            peerIdInput.focus();
+            connectButton.disabled = true; // disable's button while flashing
+            showMessage(msgText, "error");
+
+            setTimeout(() => {
+                connectButton.disabled = false;
+                connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
+            }, 1200);
+        }
+
         function showMessage(msg, type = 'info') {
             message.textContent = msg;
             message.className = ''; // Clear previous classes
@@ -1033,7 +1186,7 @@
 
             setTimeout(() => {
                 message.classList.remove('show');
-            }, 2400);
+            }, 3000);
         }
 
         function getIconByFileType(fileName) {
@@ -1085,6 +1238,10 @@
                 event.preventDefault();
                 connectButton.click();
             }
+        });
+
+        peerIdInput.addEventListener("input", () => {
+            peerIdInput.classList.remove("error");
         });
 
         function setDarkIcon(state) {

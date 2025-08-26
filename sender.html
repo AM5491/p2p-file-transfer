@@ -418,7 +418,7 @@
         }
 
         .file-size {
-            font-size: 0.93rem;
+            font-size: 1rem;
             color: var(--text-sub);
             text-align: left;
         }
@@ -426,7 +426,7 @@
         .file-progress-container {
             display: none;
             width: 100%;
-            margin-top: 0.5rem;
+            margin-top: 1.1rem;
             background-color: #e0e0e0;
             border-radius: 5px;
             height: 8px;
@@ -443,30 +443,19 @@
 
         .file-progress-text {
             position: absolute;
-            top: -16px;
-            right: 0;
-            font-size: 0.8rem;
+            top: -22px;
+            left: 0;
+            font-size: 1rem;
             color: var(--text-sub);
         }
 
-        .delete-button {
-            background-color: transparent;
-            color: #aaa;
+        .delete-file {
+            background: none;
             border: none;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 0;
             cursor: pointer;
-            font-size: 1.2rem;
-            transition: all 0.2s;
-        }
-
-        .delete-button:hover {
-            background-color: rgba(255, 77, 93, 0.1);
-            color: var(--danger);
+            color: inherit;
+            font-size: 1rem;
         }
 
         .action-buttons {
@@ -905,8 +894,6 @@
             <div class="action-buttons">
                 <button id="clearAllButton"><i class="fa-solid fa-trash"></i> Clear All</button>
                 <button id="sendButton" disabled><i class="fa-solid fa-paper-plane"></i> Send Files</button>
-                <button id="cancelButton" style="display: none;"><i class="fa-solid fa-times-circle"></i> Cancel
-                    Transfer</button>
             </div>
         </div>
 
@@ -937,7 +924,6 @@
         const fileSummary = document.getElementById("fileSummary");
         const clearAllButton = document.getElementById("clearAllButton");
         const sendButton = document.getElementById("sendButton");
-        const cancelButton = document.getElementById("cancelButton");
         const backButton = document.querySelector('.backButton');
         const darkModeButton = document.getElementById("darkModeButton");
         const message = document.getElementById("message");
@@ -1124,7 +1110,8 @@
                 }
                 fileSummary.style.display = "block";
                 fileSummary.textContent = `${selectedFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
-                clearAllButton.style.display = "block"; sendButton.style.display = "block";
+                clearAllButton.style.display = "block";
+                sendButton.style.display = "block";
                 sendButton.disabled = false;
             }
         }
@@ -1143,6 +1130,7 @@
                         </div>
                         <div class="file-meta-row">
                             <span class="file-size">${formatFileSize(file.size)}</span>
+                            <button class="delete-file" title="Remove file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
                             </div>
                     </div>
                 </div>
@@ -1152,23 +1140,19 @@
                 </div>
             `;
 
-            const deleteButton = document.createElement("button");
-            deleteButton.className = "delete-button";
-            deleteButton.innerHTML = "&times;";
-            deleteButton.title = "Remove file";
-            deleteButton.addEventListener('click', (e) => {
+            const deleteBtn = div.querySelector(".delete-file");
+            deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent any parent click events
                 selectedFiles = selectedFiles.filter(f => f !== file);
                 renderFiles();
             });
-
-            div.querySelector('.file-meta-row').appendChild(deleteButton);
 
             return div;
         }
 
         function renderFiles() {
             filesDisplayArea.innerHTML = "";
+            selectedFiles.sort((a, b) => a.size - b.size);
             if (selectedFiles.length > 0) {
                 filesDisplayArea.style.display = "block";
                 selectedFiles.forEach(file => filesDisplayArea.appendChild(createFileElement(file)));
@@ -1187,7 +1171,6 @@
 
         function resetUI() {
             isTransferring = false;
-            cancelButton.style.display = 'none';
             updateSummary();
         }
 
@@ -1250,11 +1233,13 @@
         sendButton.addEventListener('click', async () => {
             if (selectedFiles.length > 0 && connection && connection.open) {
                 isTransferring = true;
-                sendButton.style.display = "none";
-                clearAllButton.style.display = "none";
-                cancelButton.style.display = 'block';
+                sendButton.style.display = "block";
+                clearAllButton.style.display = "block";
 
-                const CHUNK_SIZE = 128 * 1024; // 128 KB
+                const CHUNK_SIZE = 64 * 1024; // 64 KB
+
+                // sorting files by size in ascending order
+                selectedFiles.sort((a, b) => a.size - b.size);
 
                 for (const file of selectedFiles) {
                     if (!isTransferring) break; // Check if transfer was cancelled before starting a new file
@@ -1274,19 +1259,38 @@
 
                     // send file in chunks
                     let offset = 0;
+                    let index = 0;
                     while (offset < file.size) {
                         const chunk = file.slice(offset, offset + CHUNK_SIZE);
                         const buffer = await chunk.arrayBuffer();
 
                         connection.send({
                             type: "chunk",
-                            payload: { name: file.name, data: buffer }
+                            payload: { name: file.name, index: index, data: buffer }
+                        });
+
+                        await new Promise((resolve, reject) => {
+                            const timer = setTimeout(() => {
+                                connection.off("data", handler);
+                                reject(new Error("Ack Timeout"));
+                            }, 5000);
+
+                            const handler = (data) => {
+                                if (data.type === "ack" && data.name === file.name && data.index === index) {
+                                    clearTimeout(timer);
+                                    connection.off("data", handler);
+                                    resolve();
+                                }
+                            };
+                            connection.on("data", handler);
                         });
 
                         offset += chunk.size;
                         const percent = Math.round((offset / file.size) * 100);
                         progressBar.style.width = percent + "%";
                         progressText.textContent = percent + "%";
+
+                        index++;
                     }
 
                     // end of file transfer
@@ -1295,7 +1299,7 @@
                             type: 'end',
                             payload: { name: file.name }
                         });
-                        progressText.textContent = 'Sent!';
+                        progressText.innerHtml = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
                     }
                 }
 
