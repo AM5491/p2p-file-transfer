@@ -161,7 +161,7 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
-            gap: 1rem;
+            gap: 1.5rem;
             padding: 1.5rem 0.5rem 3rem 0.5rem;
             border-radius: 1rem;
             background: rgba(255, 255, 255, .35);
@@ -181,6 +181,34 @@
             display: none;
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.5);
             border: 1px solid rgba(0, 0, 0, 0.452);
+        }
+
+        .glow-qr {
+            animation: qr-glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes qr-glow {
+            from {
+                box-shadow: 0 0 8px 4px rgba(22, 219, 101, 0.4), 0 0 16px 8px rgba(22, 219, 101, 0.2);
+            }
+
+            to {
+                box-shadow: 0 0 16px 8px rgba(22, 219, 101, 0.6), 0 0 32px 16px rgba(22, 219, 101, 0.4);
+            }
+        }
+
+        html.dark-mode .glow-qr {
+            animation: qr-glow-dark 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes qr-glow-dark {
+            from {
+                box-shadow: 0 0 8px 4px rgba(21, 184, 90, 0.6), 0 0 16px 8px rgba(21, 184, 90, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 16px 8px rgba(21, 184, 90, 0.8), 0 0 32px 16px rgba(21, 184, 90, 0.5);
+            }
         }
 
         #file-selection-area {
@@ -608,7 +636,7 @@
             font-size: 2rem;
             font-weight: 600;
             letter-spacing: .19em;
-            user-select: all;
+            user-select: none;
             background: linear-gradient(90deg, var(--primary) 30%, var(--accent) 100%);
             color: transparent;
             -webkit-background-clip: text;
@@ -881,7 +909,7 @@
                 <button id="copyIdButton" title="Copy code"><i class="fa-solid fa-copy"></i></button>
             </div>
 
-            <div id="qrcode"></div>
+            <div id="qrcode" class="glow-qr"></div>
 
         </div>
 
@@ -939,12 +967,32 @@
 
         let peer = null;
         let connection = null;
+        let currentFile = null;
         let selectedFiles = [];
         let isTransferring = false; // Flag to control the transfer loop
         const urlParams = new URLSearchParams(window.location.search);
-        const peerId = urlParams.get('peerId');
+        const initialPeerId = urlParams.get('peerId');
+        const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
-        if (peerId) {
+        async function initPeer() {
+            let peerId;
+            // Check if the page was refreshed
+            const isReload = performance.getEntriesByType('navigation')[0].type === 'reload';
+
+            if (initialPeerId && !isReload) {
+                // first visit from index.html
+                peerId = initialPeerId;
+
+                // clear URL so next reload/back generates new ID
+                // null -> object's state isnt restored
+                // '' -> no new page title
+                // history.replaceState(null, '', 'sender.html');
+            } else {
+                // reload/back navigation gets a fresh ID
+                peerId = await generateNewPeerId(3);
+                history.replaceState(null, '', `sender.html?peerId=${peerId}`);
+            }
+
             peer = new Peer(peerId, {
                 host: 'p2p-file-transfer-app-jdx6.onrender.com',
                 port: 443,
@@ -952,51 +1000,61 @@
                 secure: true,
                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
-            peer.on('open', id => {
-                h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
 
+            peer.on('open', function (id) {
+                h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
                 peerIdDisplay.textContent = id;
                 codeContainer.style.display = 'flex';
 
-                const receiverUrl = window.location.href.replace(/[^/]*$/, '') + `receiver.html?peerId=${id}`;
+                const receiverUrl = window.location.href.replace(/[^/]*$/, '') + 'receiver.html?peerId=' + id;
                 new QRCode(qrCodeContainer, { text: receiverUrl, width: 160, height: 160 });
                 qrCodeContainer.style.display = 'block';
 
-                copyIdButton.addEventListener('click', () => copyText(id));
+                copyIdButton.addEventListener('click', function () { copyText(id); });
             });
-            peer.on('connection', conn => {
+
+            peer.on('connection', function (conn) {
                 connection = conn;
-                connectionInfoDiv.innerHTML = `<h2><i class="fa-solid fa-link"></i> Receiver Connected!</h2>`;
+                connectionInfoDiv.innerHTML = '<h2><i class="fa-solid fa-link"></i> Receiver Connected!</h2>';
                 fileSelectionArea.classList.add('visible');
 
-                connection.on('data', (data) => {
+                conn.on('data', function (data) {
+                    if (data.type === 'skip') {
+                        const fileName = data.payload.name;
+                        console.log('Receiver skipped file:', fileName);
+                        const fileObj = selectedFiles.find(f => f.name === fileName);
+                        if (fileObj) fileObj.skippedByReceiver = true;
+                    }
+                    if (data.type === 'rejectAll') {
+                        showMessage('Receiver rejected all files.', 'error');
+                        isTransferring = false;
+                    }
                     if (data.type === 'cancel') {
                         cancelTransfer();
-                        showMessage("Receiver rejected the transfer.", "error");
-
-                        setTimeout(() => {
+                        showMessage('Receiver rejected the transfer.', 'error');
+                        setTimeout(function () {
                             body.classList.add('fade-out');
-                            setTimeout(() => {
+                            setTimeout(function () {
                                 window.location.href = 'index.html';
                             }, 350);
                         }, 1000);
                     }
                 });
 
-                connection.on('close', () => {
-                    showMessage("Receiver has disconnected.", "info");
-                    isTransferring = false; // Stop any ongoing transfer
+                conn.on('close', function () {
+                    showMessage('Receiver has disconnected.', 'info');
+                    isTransferring = false;
                     resetUI();
-
-                    setTimeout(() => {
+                    setTimeout(function () {
                         body.classList.add('fade-out');
-                        setTimeout(() => {
+                        setTimeout(function () {
                             window.location.href = 'index.html';
                         }, 350);
                     }, 1000);
                 });
             });
-            peer.on('error', err => {
+
+            peer.on('error', function (err) {
                 if (err.type === 'network' && connection && connection.open) {
                     console.warn('Signaling server disconnected.');
                     return;
@@ -1004,9 +1062,22 @@
                 alert('An error occurred with PeerJS: ' + err);
                 console.error(err);
             });
-        } else {
-            alert("No Peer ID found. Redirecting...");
-            window.location.href = 'index.html';
+        }
+
+        initPeer();
+
+        async function generateNewPeerId(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(`${SERVER_URL}/generate-id`);
+                    if (!response.ok) throw new Error('Server not responding');
+                    const data = await response.json();
+                    return data.id;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+                }
+            }
         }
 
         async function copyText(text) {
@@ -1143,8 +1214,16 @@
             const deleteBtn = div.querySelector(".delete-file");
             deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent any parent click events
-                selectedFiles = selectedFiles.filter(f => f !== file);
-                renderFiles();
+                selectedFiles = selectedFiles.filter(f => f.name !== file.name); // remove file object
+                if (isTransferring && currentFile && currentFile.name === file.name) {
+                    if (connection && connection.open) {
+                        connection.send({ type: "skip", payload: { name: file.name } }); // notify receiver
+                    }
+                    showMessage(`"${file.name}" transfer cancelled`, "info");
+                }
+
+                div.remove();
+                updateSummary();
             });
 
             return div;
@@ -1155,7 +1234,10 @@
             selectedFiles.sort((a, b) => a.size - b.size);
             if (selectedFiles.length > 0) {
                 filesDisplayArea.style.display = "block";
-                selectedFiles.forEach(file => filesDisplayArea.appendChild(createFileElement(file)));
+                selectedFiles.forEach(file => {
+                    if (file.skipped) return; // don't render skipped files
+                    filesDisplayArea.appendChild(createFileElement(file))
+                });
             }
             updateSummary();
         }
@@ -1242,9 +1324,12 @@
                 selectedFiles.sort((a, b) => a.size - b.size);
 
                 for (const file of selectedFiles) {
+                    currentFile = file;
                     if (!isTransferring) break; // Check if transfer was cancelled before starting a new file
+                    if (file.skippedByReceiver) continue;
 
                     const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
+                    if (!fileUiElement) continue; // skips any file which doesnt exists
                     const progressBar = fileUiElement.querySelector('.file-progress-bar');
                     const progressText = fileUiElement.querySelector('.file-progress-text');
                     const progressContainer = fileUiElement.querySelector('.file-progress-container');
@@ -1260,30 +1345,59 @@
                     // send file in chunks
                     let offset = 0;
                     let index = 0;
+                    let wasSkipped = false;
                     while (offset < file.size) {
+                        if (file.skippedByReceiver) {
+                            wasSkipped = true;
+                            break;
+                        }
                         const chunk = file.slice(offset, offset + CHUNK_SIZE);
                         const buffer = await chunk.arrayBuffer();
+
+                        if (file.skippedByReceiver) { // check again after reading buffer
+                            wasSkipped = true;
+                            break;
+                        }
 
                         connection.send({
                             type: "chunk",
                             payload: { name: file.name, index: index, data: buffer }
                         });
 
-                        await new Promise((resolve, reject) => {
-                            const timer = setTimeout(() => {
-                                connection.off("data", handler);
-                                reject(new Error("Ack Timeout"));
-                            }, 5000);
-
-                            const handler = (data) => {
-                                if (data.type === "ack" && data.name === file.name && data.index === index) {
-                                    clearTimeout(timer);
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const timer = setTimeout(() => {
                                     connection.off("data", handler);
-                                    resolve();
-                                }
-                            };
-                            connection.on("data", handler);
-                        });
+                                    reject(new Error("Ack Timeout"));
+                                }, 5000);
+
+                                const handler = (data) => {
+                                    if (data.type === "ack" && data.name === file.name && data.index === index) {
+                                        clearTimeout(timer);
+                                        connection.off("data", handler);
+                                        resolve();
+                                    }
+                                    if (data.type === "skip" && data.payload.name === file.name) {
+                                        clearTimeout(timer);
+                                        connection.off("data", handler);
+                                        reject(new Error("Skipped by receiver"));
+                                    }
+                                };
+                                connection.on("data", handler);
+                            });
+                        } catch (err) {
+                            console.error("Ack failed:", err);
+                            if (err.message === "Skipped by receiver") {
+                                wasSkipped = true;   // ✅ make sure cleanup runs
+                            } else {
+                                break; // timeout or other error
+                            }
+                        }
+
+                        if (file.skippedByReceiver) { // check again after ack wait
+                            wasSkipped = true;
+                            break;
+                        }
 
                         offset += chunk.size;
                         const percent = Math.round((offset / file.size) * 100);
@@ -1293,13 +1407,24 @@
                         index++;
                     }
 
+                    if (wasSkipped) {
+                        showMessage(`"${file.name}" was skipped by receiver.`, "error");
+                        fileUiElement.style.transition = "opacity 0.3s ease";
+                        fileUiElement.style.opacity = "0";
+                        setTimeout(() => {
+                            fileUiElement.remove();
+                            updateSummary();
+                        }, 300);
+                        continue;
+                    }
+
                     // end of file transfer
                     if (isTransferring) { // Only send 'end' if not cancelled
                         connection.send({
                             type: 'end',
                             payload: { name: file.name }
                         });
-                        progressText.innerHtml = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                        progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
                     }
                 }
 

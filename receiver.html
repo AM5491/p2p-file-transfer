@@ -841,6 +841,7 @@
         let downloadableBlobs = {}; // Stores completed file blobs ready for download
         let connection = null;
         let peer = null;
+        let currentReceivingFile = null;
 
         const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -950,6 +951,7 @@
                 connection.on('close', () => {
                     showMessage("Sender has disconnected.", "info");
                     resetState();
+                    navigateWithAnimation("index.html");
                 });
             }
         }
@@ -970,10 +972,14 @@
                     showMessage("Sender cancelled the transfer.", "error");
                     resetState();
                     break;
+                case 'skip':
+                    handleSkippedFile(payload);
+                    break;
             }
         }
 
         function handleFileStart(payload) {
+            currentReceivingFile = payload;
             h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
             incomingFilesList.style.display = 'block';
             actionButtons.style.display = 'flex';
@@ -1020,6 +1026,30 @@
 
             // Free up memory by deleting the chunks
             delete incomingFiles[payload.name].chunks;
+            currentReceivingFile = null;
+        }
+
+        function handleSkippedFile(payload) {
+            const skippedFile = payload.name;
+            if (currentReceivingFile && currentReceivingFile.name === skippedFile) {
+                currentReceivingFile = null; // stop receiving this file
+                showMessage(`"${skippedFile}" transfer cancelled by sender`, "info");
+
+                delete incomingFiles[skippedFile];
+                delete downloadableBlobs[skippedFile];
+
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(skippedFile)}"]`);
+                if (fileUiElement) {
+                    fileUiElement.style.opacity = 0;
+                    setTimeout(() => fileUiElement.remove(), 300);
+                }
+
+                if (incomingFilesList.children.length === 0) {
+                    actionButtons.style.display = 'none';
+                    incomingFilesList.style.display = 'none';
+                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                }
+            }
         }
 
         function showConfirm(message, onYes, onNo) {
@@ -1085,13 +1115,26 @@
             deleteBtn.addEventListener("click", () => {
                 delete downloadableBlobs[file.name];
                 delete incomingFiles[file.name];
-                div.remove();
+
+                div.style.transition = "opacity 0.3s ease";
+                div.style.opacity = "0";
+                setTimeout(() => {
+                    div.remove();
+
+                    if (incomingFilesList.children.length === 0) {
+                        actionButtons.style.display = 'none';
+                        incomingFilesList.style.display = 'none';
+                        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                    }
+                }, 300);
+
                 showMessage(`File "${file.name}" deleted`, "info");
 
-                if (incomingFilesList.children.length === 0) {
-                    actionButtons.style.display = 'none';
-                    incomingFilesList.style.display = 'none';
-                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                if (connection && connection.open) {
+                    connection.send({
+                        type: "skip",
+                        payload: { name: file.name }
+                    });
                 }
             });
         }
@@ -1119,6 +1162,25 @@
             rejectButton.disabled = true;
             acceptButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading';
 
+            const rows = incomingFilesList.querySelectorAll(".fileList");
+
+            let removedCount = 0;
+            const total = rows.length;
+
+            rows.forEach((row) => {
+                row.style.transition = "opacity 0.3s ease";
+                row.style.opacity = "0";
+
+                setTimeout(() => {
+                    row.remove();
+                    removedCount++;
+
+                    if (removedCount === total) {
+                        resetState(); // run only after all are gone
+                    }
+                }, 300);
+            });
+
             setTimeout(() => {
 
                 for (const name in downloadableBlobs) {
@@ -1135,7 +1197,7 @@
 
                 showMessage("Files accepted and downloaded!", "success");
                 resetState();
-            }, 500);
+            }, 300);
         });
 
         function disconnectTransfer() {
@@ -1148,20 +1210,36 @@
 
         rejectButton.addEventListener('click', () => {
             showConfirm("Remove all files ?", () => {
+                const rows = incomingFilesList.querySelectorAll(".fileList");
+
+                let removedCount = 0;
+                const total = rows.length;
+
+                rows.forEach((row, index) => {
+                    row.style.transition = "opacity 0.3s ease";
+                    row.style.opacity = "0";
+
+                    setTimeout(() => {
+                        row.remove();
+                        removedCount++;
+
+                        if (removedCount === total) {
+                            resetState(); // run only after all are gone
+                        }
+                    }, 300);
+                });
                 showMessage("Files rejected!", "error");
-                resetState();
+
+                connection.send({ type: "rejectAll" });
             });
         });
 
         function resetState() {
             incomingFiles = {};
             downloadableBlobs = {};
-            incomingFilesList.innerHTML = '';
             actionButtons.style.display = 'none';
             incomingFilesList.style.display = 'none';
             h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
-            acceptButton.disabled = false;
-            rejectButton.disabled = false;
         }
 
         function markInputError(msgText) {
