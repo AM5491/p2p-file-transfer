@@ -43,6 +43,13 @@
             --bg-dark: rgb(44, 62, 80);
         }
 
+        a,
+        button,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+        }
+
         html {
             scroll-behavior: smooth;
             scrollbar-gutter: stable;
@@ -255,6 +262,25 @@
             background: rgba(22, 219, 101, .1);
             color: var(--primary-dark);
             border-color: var(--primary);
+            animation: file-glow 2s ease-in-out infinite;
+        }
+
+        #file-selection-area.visible #file-label {
+            animation: file-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes file-glow {
+            0% {
+                box-shadow: 0 0 16px 8px rgba(255, 107, 129, 0.6), 0 0 32px 16px rgba(255, 107, 129, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 16px 8px rgba(66, 219, 245, 0.6), 0 0 32px 16px rgba(66, 219, 245, 0.4);
+            }
+
+            100% {
+                box-shadow: 0 0 16px 8px rgba(255, 107, 129, 0.6), 0 0 32px 16px rgba(255, 107, 129, 0.4);
+            }
         }
 
         #fileChoosen {
@@ -283,6 +309,7 @@
             padding: .73rem 1.1rem;
             margin-bottom: .48rem;
             background: var(--file-row-bg);
+            color: var(--text-main);
             box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
         }
 
@@ -513,6 +540,10 @@
             transform: translateY(-2px);
         }
 
+        #sendButton:active {
+            transform: scale(0.85);
+        }
+
         #sendButton:disabled {
             cursor: not-allowed;
             transform: none;
@@ -526,6 +557,10 @@
 
         #clearAllButton:hover {
             transform: translateY(-2px);
+        }
+
+        #clearAllButton:active {
+            transform: scale(0.85);
         }
 
         .backButton {
@@ -545,7 +580,13 @@
         .backButton:hover {
             background: var(--danger);
             color: #fff;
-            transform: translateY(-3px);
+            transform: translateY(-2px);
+        }
+
+        .backButton:active {
+            background: var(--danger);
+            color: #fff;
+            transform: scale(0.85);
         }
 
         html.dark-mode .backButton {
@@ -578,6 +619,12 @@
             color: #fff;
         }
 
+        #darkModeButton:active {
+            transform: scale(0.85);
+            background: #222d3a;
+            color: #fff;
+        }
+
         html.dark-mode #darkModeButton {
             background: #3b557b;
             color: #ffe27a;
@@ -586,6 +633,12 @@
         html.dark-mode #darkModeButton:hover {
             background: #212936;
             color: #fff;
+        }
+
+        html.dark-mode #darkModeButton:active {
+            background: #212936;
+            color: #fff;
+            transform: scale(0.85);
         }
 
         #message {
@@ -665,9 +718,25 @@
             transform: scale(1.1);
         }
 
+        #copyIdButton:active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(0.85);
+        }
+
         #cancelButton {
             background: var(--danger);
             color: #fff;
+            transition: transform 0.2s ease;
+        }
+
+        #cancelButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #cancelButton:active {
+            transform: scale(0.85);
         }
 
         .dialog-overlay {
@@ -708,10 +777,14 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 0.95rem;
-            transition: transform 0.18s, background 0.18s, color 0.18s;
+            transition: transform 0.3s, background 0.3s, color 0.3s;
         }
 
         .dialog-buttons button:hover {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        .dialog-buttons button:active {
             transform: translateY(-3px) scale(1.03);
         }
 
@@ -722,6 +795,10 @@
         }
 
         #confirmYes:hover {
+            background: #e63946;
+        }
+
+        #confirmYes:active {
             background: #e63946;
         }
 
@@ -736,6 +813,10 @@
             color: #111;
         }
 
+        #confirmNo:active {
+            background: #bbb;
+            color: #111;
+        }
 
         @media (max-width: 600px) {
             #container {
@@ -1347,6 +1428,7 @@
                     let index = 0;
                     let wasSkipped = false;
                     while (offset < file.size) {
+                        if (!isTransferring) break;
                         if (file.skippedByReceiver) {
                             wasSkipped = true;
                             break;
@@ -1387,11 +1469,9 @@
                             });
                         } catch (err) {
                             console.error("Ack failed:", err);
-                            if (err.message === "Skipped by receiver") {
-                                wasSkipped = true;   // ✅ make sure cleanup runs
-                            } else {
-                                break; // timeout or other error
-                            }
+                            wasSkipped = true;
+                            showMessage(`Transfer of "${file.name}" failed: ${err.message}`, "error");
+                            break;
                         }
 
                         if (file.skippedByReceiver) { // check again after ack wait

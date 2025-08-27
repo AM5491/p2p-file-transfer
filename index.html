@@ -36,6 +36,13 @@
             --text-sub-dark: #a4b6c3;
         }
 
+        a,
+        button,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+        }
+
         html {
             scroll-behavior: smooth;
             scrollbar-gutter: stable;
@@ -182,19 +189,28 @@
 
         #sendPageButton {
             background: linear-gradient(90deg, var(--primary) 30%, var(--primary-dark) 100%);
-            transition: transform .18s, border .18s;
+            transition: transform .18s;
         }
 
         #sendPageButton:hover {
             transform: translateY(-3px) scale(1.03);
         }
 
+        #sendPageButton:active {
+            transform: scale(0.85);
+        }
+
         #receivePageButton {
             background: linear-gradient(92deg, var(--accent) 20%, #0880d0 100%);
+            transition: transform .18s;
         }
 
         #receivePageButton:hover {
             transform: translateY(-3px) scale(1.03);
+        }
+
+        #receivePageButton:active {
+            transform: scale(0.85);
         }
 
         #darkModeButton {
@@ -222,14 +238,27 @@
             color: #fff;
         }
 
+        #darkModeButton:active {
+            transform: scale(0.85);
+            background: #222d3a;
+            color: #fff;
+        }
+
         html.dark-mode #darkModeButton {
             background: #3b557b;
             color: #ffe27a;
+
         }
 
         html.dark-mode #darkModeButton:hover {
             background: #212936;
             color: #fff;
+        }
+
+        html.dark-mode #darkModeButton:active {
+            background: #212936;
+            color: #fff;
+            transform: scale(0.85);
         }
 
         @media (max-width: 480px) {
