@@ -1051,28 +1051,30 @@
         let currentFile = null;
         let selectedFiles = [];
         let isTransferring = false; // Flag to control the transfer loop
-        const urlParams = new URLSearchParams(window.location.search);
-        const initialPeerId = urlParams.get('peerId');
+        let isReconnecting = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 3;
+
         const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
         async function initPeer() {
             let peerId;
-            // Check if the page was refreshed
-            const isReload = performance.getEntriesByType('navigation')[0].type === 'reload';
 
-            if (initialPeerId && !isReload) {
-                // first visit from index.html
-                peerId = initialPeerId;
-
-                // clear URL so next reload/back generates new ID
-                // null -> object's state isnt restored
-                // '' -> no new page title
-                // history.replaceState(null, '', 'sender.html');
-            } else {
-                // reload/back navigation gets a fresh ID
+            try {
                 peerId = await generateNewPeerId(3);
-                history.replaceState(null, '', `sender.html?peerId=${peerId}`);
+            } catch (error) {
+                console.error("Failed to get a peer ID:", err);
+                showMessage("Server not running. Please try again in a moment.", "error");
+                setTimeout(() => {
+                    navigateWithAnimation("index.html");
+                }, 1500);
+                return;
             }
+
+            // null -> object's state isnt restored
+            // '' -> no new page title
+            // history.replaceState(null, '', 'sender.html');
+            history.replaceState(null, '', `sender.html?peerId=${peerId}`);
 
             peer = new Peer(peerId, {
                 host: 'p2p-file-transfer-app-jdx6.onrender.com',
@@ -1099,7 +1101,45 @@
                 connectionInfoDiv.innerHTML = '<h2><i class="fa-solid fa-link"></i> Receiver Connected!</h2>';
                 fileSelectionArea.classList.add('visible');
 
+                connection.on('open', () => {
+                    console.log("Receiver connected.");
+                    showMessage("Receiver connected!", "success");
+
+                    connection.peerConnection.onconnectionstatechange = () => {
+                        const state = connection.peerConnection.connectionState;
+                        console.log("Connection state changed:", state);
+
+                        if (state === "disconnected" && !isReconnecting) {
+                            isReconnecting = true;
+                            reconnectAttempts++;
+                            showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+
+                            // close previous connection without waiting for receiver
+                            if (connection && connection.open) {
+                                connection.close();
+                            }
+
+                            setTimeout(() => { isReconnecting = false; }, 3000);
+
+                            if (reconnectAttempts >= maxReconnectAttempts) {
+                                showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
+                                setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                            }
+                        }
+                        else if (state === "failed") {
+                            showMessage("Connection failed permanently. Redirecting...", "error");
+                            setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                        }
+                        else if (state === "connected") {
+                            reconnectAttempts = 0;
+                            isReconnecting = false;
+                            showMessage("Reconnected successfully!", "success");
+                        }
+                    };
+                });
+
                 conn.on('data', function (data) {
+                    console.log('SENDER (Master Spy): Received a message ->', data);
                     if (data.type === 'skip') {
                         const fileName = data.payload.name;
                         console.log('Receiver skipped file:', fileName);
@@ -1198,7 +1238,7 @@
             body.classList.add('fade-out');
             setTimeout(() => {
                 window.location.href = url;
-            }, 350);
+            }, 450);
         }
 
         function showMessage(msg, type = 'info') {
@@ -1454,6 +1494,7 @@
                                 }, 5000);
 
                                 const handler = (data) => {
+                                    console.log(`SENDER (Local Spy): The waiting function heard something ->`, data);
                                     if (data.type === "ack" && data.name === file.name && data.index === index) {
                                         clearTimeout(timer);
                                         connection.off("data", handler);
@@ -1535,6 +1576,19 @@
             setDarkIcon(isDark ? 'dark' : 'light');
         });
 
+        window.addEventListener("pageshow", () => {
+            const body = document.body;
+            body.classList.remove("fade-out");
+            body.classList.add("fade-in");
+        });
+
+        window.addEventListener('beforeload', function (event) {
+            if (isTransferring) {
+                showConfirm('File transfer is in progress. Are you sure you want to leave ?', () => {
+                    navigateWithAnimation('sender.html');
+                });
+            }
+        });
     </script>
 </body>
 

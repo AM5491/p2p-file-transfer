@@ -848,6 +848,12 @@
         let connection = null;
         let peer = null;
         let currentReceivingFile = null;
+        let isReconnecting = false;
+        const maxRetries = 4;
+        let retryCount = 0;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 3;
+        let db; // this will hold database connection
 
         const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -921,8 +927,7 @@
         }
 
         function startConnection(senderId) {
-            const maxRetries = 4;
-            let retryCount = 0;
+            openDatabase();
             peer = new Peer({
                 host: 'p2p-file-transfer-app-jdx6.onrender.com',
                 port: 443,
@@ -951,8 +956,46 @@
             });
 
             function attemptConnection() {
+                if (connection && connection.open) {
+                    connection.close(); // 🔑 close any old connection before retrying
+                }
+
                 connection = peer.connect(senderId);
-                connection.on('open', () => h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...');
+
+                connection.on('open', () => {
+                    h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
+                    console.log("Connection established with sender.");
+                    showMessage("Connected to sender!", "success");
+
+                    connection.peerConnection.onconnectionstatechange = () => {
+                        const state = connection.peerConnection.connectionState;
+                        console.log("Connection state changed:", state);
+
+                        if (state === "disconnected" && !isReconnecting) {
+                            isReconnecting = true;
+                            reconnectAttempts++;
+                            showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+
+                            attemptConnection();
+
+                            setTimeout(() => { isReconnecting = false; }, 3000);
+
+                            if (reconnectAttempts >= maxReconnectAttempts) {
+                                showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
+                                setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
+                            }
+                        }
+                        else if (state === "failed") {
+                            showMessage("Connection failed permanently. Redirecting...", "error");
+                            setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
+                        }
+                        else if (state === "connected") {
+                            reconnectAttempts = 0;
+                            isReconnecting = false;
+                            showMessage("Reconnected successfully!", "success");
+                        }
+                    };
+                });
                 connection.on('data', handleData);
                 connection.on('close', () => {
                     showMessage("Sender has disconnected.", "info");
@@ -990,61 +1033,91 @@
             incomingFilesList.style.display = 'block';
             actionButtons.style.display = 'flex';
 
+            let displayName = payload.name;
+
+            // if a file with this name already exists
+            if (incomingFiles[payload.name]) {
+                const baseName = payload.name.replace(/\.[^/.]+$/, ""); // filename without any extension
+                const extension = payload.name.split(".").pop();
+                displayName = `${baseName}_${Date.now()}.${extension}`;
+            }
+
             incomingFiles[payload.name] = {
+                name: displayName,
                 metadata: payload, // stores file info (name, size, type)
                 chunks: [], // empty array to hold pieces of file
                 receivedSize: 0 // how much data is received so far
             };
-            const fileElement = createFileElement(payload);
+            const fileElement = createFileElement({ ...payload, name: displayName });
             incomingFilesList.appendChild(fileElement);
         }
 
-        function handleFileChunk(payload) {
+        async function handleFileChunk(payload) {
             const file = incomingFiles[payload.name];
             if (!file) return;
-            file.chunks.push(payload.data);
-            file.receivedSize += payload.data.byteLength;
 
-            const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
-            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
-            if (fileUiElement) {
-                const progressBar = fileUiElement.querySelector('.file-progress-bar');
-                const progressText = fileUiElement.querySelector('.file-progress-text');
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
+            const chunkToSave = {
+                fileName: payload.name,
+                index: payload.index,
+                data: payload.data
+            };
+
+            try {
+                await saveChunk(chunkToSave);
+
+                file.receivedSize += payload.data.byteLength;
+
+                const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+                if (fileUiElement) {
+                    const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                    const progressText = fileUiElement.querySelector('.file-progress-text');
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                }
+                console.log(`RECEIVER: Sending ack for ${payload.name}, chunk #${payload.index}`);
+
+                // after handling a chunk send ack to sender
+                connection.send({ type: "ack", name: payload.name, index: payload.index });
+            } catch (error) {
+                console.error("Failed to process chunk, stopping transfer.", error);
             }
-            // after handling a chunk send ack to sender
-            connection.send({ type: "ack", name: payload.name, index: payload.index });
         }
 
-        function handleFileEnd(payload) {
+        async function handleFileEnd(payload) {
             const file = incomingFiles[payload.name];
             if (!file) return;
 
-            const blob = new Blob(file.chunks, { type: file.metadata.type });
-            downloadableBlobs[file.metadata.name] = blob;
+            try {
+                const blob = await getChunksAndAssembleFile(payload.name, file.metadata.type);
+                downloadableBlobs[file.name] = blob;
 
-            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
-            if (fileUiElement) {
-                const progressText = fileUiElement.querySelector('.file-progress-text');
-                progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+                if (fileUiElement) {
+                    const progressText = fileUiElement.querySelector('.file-progress-text');
+                    progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                }
+
+                deleteFileChunks(payload.name);
+
+            } catch (error) {
+                console.error("Failed to assemble file from DB:", error);
+                showMessage("Error processing received file.", "error");
+            } finally {
+                currentReceivingFile = null;
             }
-
-            // Free up memory by deleting the chunks
-            delete incomingFiles[payload.name].chunks;
-            currentReceivingFile = null;
         }
 
         function handleSkippedFile(payload) {
-            const skippedFile = payload.name;
-            if (currentReceivingFile && currentReceivingFile.name === skippedFile) {
+            const file = incomingFiles[payload.name];
+            if (currentReceivingFile && currentReceivingFile.name === payload.name) {
                 currentReceivingFile = null; // stop receiving this file
-                showMessage(`"${skippedFile}" transfer cancelled by sender`, "info");
+                showMessage(`"${file.displayName}" transfer cancelled by sender`, "info");
 
-                delete incomingFiles[skippedFile];
-                delete downloadableBlobs[skippedFile];
+                delete incomingFiles[payload.name];
+                delete downloadableBlobs[file.displayName];
 
-                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(skippedFile)}"]`);
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(file.displayName)}"]`);
                 if (fileUiElement) {
                     fileUiElement.style.opacity = 0;
                     setTimeout(() => fileUiElement.remove(), 300);
@@ -1080,7 +1153,7 @@
             body.classList.add('fade-out');
             setTimeout(() => {
                 window.location.href = url;
-            }, 350);
+            }, 450);
         }
 
         function createFileElement(file) {
@@ -1119,8 +1192,8 @@
 
         function deleteBtnEvent(deleteBtn, file, div) {
             deleteBtn.addEventListener("click", () => {
-                delete downloadableBlobs[file.name];
-                delete incomingFiles[file.name];
+                delete downloadableBlobs[file.displayName];
+                delete incomingFiles[file.metadata.name];
 
                 div.style.transition = "opacity 0.3s ease";
                 div.style.opacity = "0";
@@ -1134,12 +1207,12 @@
                     }
                 }, 300);
 
-                showMessage(`File "${file.name}" deleted`, "info");
+                showMessage(`File "${file.displayName}" deleted`, "info");
 
                 if (connection && connection.open) {
                     connection.send({
                         type: "skip",
-                        payload: { name: file.name }
+                        payload: { name: file.metadata.name }
                     });
                 }
             });
@@ -1308,6 +1381,95 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
+        function openDatabase() {
+            // request is a type of ticket
+            // indexedDB is a type of master key maker built into every browser
+            // we made a request to master key maker to open a storage box
+            // fileStorageDB is the name of our personal storage box we want to open
+            // 1 is version number or 1st edition of our storage box
+            const request = indexedDB.open("fileStorageDB", 1);
+
+            // we are telling our request ticket if our storage box or database is new and empty we need to set it up
+            request.onupgradeneeded = function (event) {
+                let database = event.target.result; // browser gives us new empty database
+
+                // builds a shelf like ObjectStore inside our database to hold file chunks
+                database.createObjectStore("fileChunks", { autoIncrement: true });
+            }
+            request.onsuccess = function (event) {
+                db = event.target.result; // browser gives us sucessful connection
+                console.log('Database is open and ready to be used.');
+            }
+            request.onerror = function (event) {
+                console.log('Database error ', event.target.error);
+            }
+        }
+
+        // helps in saving a single chunk to database
+        function saveChunk(chunk) {
+            return new Promise(function (resolve, reject) {
+                const transaction = db.transaction(["fileChunks"], "readwrite");
+                const store = transaction.objectStore("fileChunks");
+                const request = store.add(chunk);
+
+                // When the save is successful, the promise is resolved.
+                request.onsuccess = function () {
+                    resolve();
+                };
+
+                // If there's an error, the promise is rejected.
+                request.onerror = function (event) {
+                    console.error("Error saving chunk to DB:", event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        function getChunksAndAssembleFile(fileName, fileType) {
+            return new Promise(function (resolve, reject) {
+                const transaction = db.transaction(["fileChunks"], "readonly");
+                const store = transaction.objectStore("fileChunks");
+                const chunks = [];
+
+                const request = store.openCursor();
+
+                request.onsuccess = function (event) {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        if (cursor.value.fileName === fileName) {
+                            chunks.push(cursor.value);
+                        }
+                        cursor.continue(); //move to next chunk in storage box
+                    } else {
+                        chunks.sort(function (a, b) { return a.index - b.index; });
+
+                        const finalData = []
+                        for (let i = 0; i < chunks.length; i++) {
+                            finalData.push(chunks[i].data);
+                        }
+                        const fileBlob = new Blob(finalData, { type: fileType });
+                        resolve(fileBlob);
+                    }
+                };
+            });
+        }
+
+        function deleteFileChunks(fileName) {
+            const transaction = db.transaction(["fileChunks"], "readwrite");
+            const store = transaction.objectStore("fileChunks");
+
+            const request = store.openCursor();
+            request.onsuccess = function (event) {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.fileName === fileName) {
+                        cursor.delete(); // Delete the matching chunk.
+                    }
+                    cursor.continue();
+                }
+            };
+        }
+
         backButton.addEventListener('click', () => {
             showConfirm("Do you want to disconnect ?", () => {
                 if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
@@ -1343,6 +1505,13 @@
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             setDarkIcon(isDark ? 'dark' : 'light');
         });
+
+        window.addEventListener("pageshow", () => {
+            const body = document.body;
+            body.classList.remove("fade-out");
+            body.classList.add("fade-in");
+        });
+
     </script>
 </body>
 
