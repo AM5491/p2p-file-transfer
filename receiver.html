@@ -16,6 +16,7 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="common.js"></script>
     <style>
         :root {
             --primary: #16db65;
@@ -779,6 +780,75 @@
                 max-width: 650px;
             }
         }
+
+
+        /* ADD THIS CSS BLOCK */
+        #debug-log-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid #555;
+            border-radius: 8px;
+            z-index: 9999;
+            color: #fff;
+            font-family: monospace;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #debug-log-header {
+            background: #222;
+            padding: 4px 8px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #clear-log-button {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #debug-log {
+            overflow-y: scroll;
+            padding: 5px;
+            flex-grow: 1;
+        }
+
+        .log-message {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+            white-space: pre-wrap;
+        }
+
+        #inspect-state-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        #copy-log-button {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
     </style>
 </head>
 
@@ -818,306 +888,378 @@
         </div>
     </div>
 
-    <script>
-        "use strict";
-        const h2 = document.querySelector("h2");
-        const manualEntryDiv = document.getElementById("manual-entry");
-        const peerIdInput = document.getElementById("peerIdInput");
-        const connectButton = document.getElementById("connectButton");
-        const incomingFilesList = document.getElementById("incomingFilesList");
-        const actionButtons = document.querySelector('.action-buttons');
-        const acceptButton = actionButtons.querySelector('.accept');
-        const rejectButton = actionButtons.querySelector('.reject');
-        const backButton = document.querySelector('.backButton');
-        const darkModeButton = document.getElementById("darkModeButton");
-        const message = document.getElementById("message");
-        const body = document.body;
-        const overlay = document.getElementById("confirmDialog");
-        const msg = document.getElementById("confirmMessage");
-        const yesBtn = document.getElementById("confirmYes");
-        const noBtn = document.getElementById("confirmNo");
-        const tooltip = peerIdInput.nextElementSibling;
+    <div id="debug-log-container">
+        <div id="debug-log-header">
+            <span>On-Screen Debug Log</span>
+            <button id="inspect-state-button">Inspect State</button>
+            <button id="copy-log-button">Copy</button>
+            <button id="clear-log-button">Clear</button>
+        </div>
+        <div id="debug-log"></div>
+    </div>
 
-        body.classList.add('fade-in');
+</body>
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const peerId = urlParams.get('peerId');
+</html>
 
-        let incomingFiles = {}; // Stores metadata and chunks
-        let downloadableBlobs = {}; // Stores completed file blobs ready for download
-        let connection = null;
-        let peer = null;
-        let currentReceivingFile = null;
-        let isReconnecting = false;
-        const maxRetries = 4;
-        let retryCount = 0;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 3;
-        let db; // this will hold database connection
+<script>
+    "use strict";
+    const h2 = document.querySelector("h2");
+    const manualEntryDiv = document.getElementById("manual-entry");
+    const peerIdInput = document.getElementById("peerIdInput");
+    const connectButton = document.getElementById("connectButton");
+    const incomingFilesList = document.getElementById("incomingFilesList");
+    const actionButtons = document.querySelector('.action-buttons');
+    const acceptButton = actionButtons.querySelector('.accept');
+    const rejectButton = actionButtons.querySelector('.reject');
+    const backButton = document.querySelector('.backButton');
+    const darkModeButton = document.getElementById("darkModeButton");
+    const message = document.getElementById("message");
+    const body = document.body;
+    const overlay = document.getElementById("confirmDialog");
+    const msg = document.getElementById("confirmMessage");
+    const yesBtn = document.getElementById("confirmYes");
+    const noBtn = document.getElementById("confirmNo");
+    const tooltip = peerIdInput.nextElementSibling;
 
-        const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
+    body.classList.add('fade-in');
 
-        if (peerId) {
-            startConnection(peerId);
-        } else {
-            h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
-            manualEntryDiv.style.display = 'flex';
+    const urlParams = new URLSearchParams(window.location.search);
+    const peerId = urlParams.get('peerId');
 
-            peerIdInput.focus();
+    let incomingFiles = {}; // Stores metadata and chunks
+    let downloadableBlobs = {}; // Stores completed file blobs ready for download
+    let connection = null;
+    let peer = null;
+    let currentReceivingFile = null;
+    let isReconnecting = false;
+    const maxRetries = 4;
+    let retryCount = 0;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 3;
+    let fileQueue = [];
+    let db; // this will hold database connection
 
+    const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
+
+    if (peerId) {
+        startConnection(peerId);
+    } else {
+        h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+        manualEntryDiv.style.display = 'flex';
+
+        peerIdInput.focus();
+
+        setTimeout(() => {
+            peerIdInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 200);
+
+        if (!peerIdInput.value.trim()) {
+            tooltip.classList.add("show");
+            tooltip.style.opacity = "1";
+        }
+
+        peerIdInput.addEventListener("input", () => {
+            tooltip.style.opacity = "0";
             setTimeout(() => {
-                peerIdInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, 200);
+                tooltip.classList.remove("show");
+            }, 400);
+        });
 
+        peerIdInput.addEventListener("focus", () => {
+            tooltip.style.opacity = "0";
+            setTimeout(() => {
+                tooltip.classList.remove("show");
+            }, 400);
+        });
+
+        peerIdInput.addEventListener("blur", () => {
             if (!peerIdInput.value.trim()) {
                 tooltip.classList.add("show");
                 tooltip.style.opacity = "1";
             }
+        });
 
-            peerIdInput.addEventListener("input", () => {
-                tooltip.style.opacity = "0";
-                setTimeout(() => {
-                    tooltip.classList.remove("show");
-                }, 400);
-            });
+        connectButton.addEventListener('click', async () => {
+            const enteredId = peerIdInput.value.trim();
+            if (/^\d{6}$/.test(enteredId)) {
+                connectButton.disabled = true;
+                connectButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying';
+                try {
+                    const response = await fetch(`${SERVER_URL}/check-id/${enteredId}`);
+                    if (!response.ok) throw new Error("Server not reachable");
+                    const data = await response.json();
 
-            peerIdInput.addEventListener("focus", () => {
-                tooltip.style.opacity = "0";
-                setTimeout(() => {
-                    tooltip.classList.remove("show");
-                }, 400);
-            });
-
-            peerIdInput.addEventListener("blur", () => {
-                if (!peerIdInput.value.trim()) {
-                    tooltip.classList.add("show");
-                    tooltip.style.opacity = "1";
-                }
-            });
-
-            connectButton.addEventListener('click', async () => {
-                const enteredId = peerIdInput.value.trim();
-                if (/^\d{6}$/.test(enteredId)) {
-                    connectButton.disabled = true;
-                    connectButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying';
-                    try {
-                        const response = await fetch(`${SERVER_URL}/check-id/${enteredId}`);
-                        if (!response.ok) throw new Error("Server not reachable");
-                        const data = await response.json();
-
-                        if (data.idExists) {
-                            manualEntryDiv.style.display = "none";
-                            startConnection(enteredId);
-                        } else {
-                            markInputError("Enter a correct 6 digit peer id");
-                            connectButton.disabled = false;
-                            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
-                        }
-                    } catch (error) {
-                        console.error("Failed to verify ID:", error);
-                        showMessage("Could not connect to the server. Please ensure the backend is running.", "error");
+                    if (data.idExists) {
+                        manualEntryDiv.style.display = "none";
+                        startConnection(enteredId);
+                    } else {
+                        markInputError("Enter a correct 6 digit peer id");
                         connectButton.disabled = false;
                         connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
                     }
-                } else {
-                    markInputError("Enter a correct 6 digit peer id");
-                    return;
+                } catch (error) {
+                    console.error("Failed to verify ID:", error);
+                    showMessage("Could not connect to the server. Please ensure the backend is running.", "error");
+                    connectButton.disabled = false;
+                    connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
                 }
-            });
-        }
+            } else {
+                markInputError("Enter a correct 6 digit peer id");
+                return;
+            }
+        });
+    }
 
-        function startConnection(senderId) {
-            openDatabase();
-            peer = new Peer({
-                host: 'p2p-file-transfer-app-jdx6.onrender.com',
-                port: 443,
-                path: '/peerjs/myapp',
-                secure: true,
-                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-            });
+    function startConnection(senderId) {
+        openDatabase();
+        peer = new Peer({
+            host: 'p2p-file-transfer-app-jdx6.onrender.com',
+            port: 443,
+            path: '/peerjs/myapp',
+            secure: true,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+        });
 
-            peer.on('open', id => {
-                h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`;
-                attemptConnection();
-            });
-            peer.on('error', err => {
-                if (Object.keys(incomingFiles).length > 0) {
-                    console.warn("Non-fatal PeerJS error ignored during transfer:", err);
-                    return; // file transferring is active so don't show any connection error from signaling server
-                }
-                if (err.type === 'peer-unavailable' && retryCount < maxRetries) {
-                    retryCount++;
-                    h2.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Sender not found. Retrying... (${retryCount}/${maxRetries})`;
-                    setTimeout(attemptConnection, 2000);
-                } else {
-                    alert('Could not connect to peer. Please check the code and try again.');
-                    h2.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Connection Failed';
-                }
-            });
+        peer.on('open', id => {
+            h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`;
+            attemptConnection();
+        });
+        peer.on('error', err => {
+            if (Object.keys(incomingFiles).length > 0) {
+                console.warn("Non-fatal PeerJS error ignored during transfer:", err);
+                return; // file transferring is active so don't show any connection error from signaling server
+            }
+            if (err.type === 'peer-unavailable' && retryCount < maxRetries) {
+                retryCount++;
+                h2.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Sender not found. Retrying... (${retryCount}/${maxRetries})`;
+                setTimeout(attemptConnection, 2000);
+            } else {
+                alert('Could not connect to peer. Please check the code and try again.');
+                h2.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Connection Failed';
+            }
+        });
 
-            function attemptConnection() {
-                if (connection && connection.open) {
-                    connection.close(); // 🔑 close any old connection before retrying
-                }
+        function attemptConnection() {
+            if (connection && connection.open) {
+                connection.close(); // 🔑 close any old connection before retrying
+            }
 
-                connection = peer.connect(senderId);
+            connection = peer.connect(senderId);
 
-                connection.on('open', () => {
-                    h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
-                    console.log("Connection established with sender.");
-                    showMessage("Connected to sender!", "success");
+            connection.on('open', () => {
+                h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
+                console.log("Connection established with sender.");
+                showMessage("Connected to sender!", "success");
 
-                    connection.peerConnection.onconnectionstatechange = () => {
-                        const state = connection.peerConnection.connectionState;
-                        console.log("Connection state changed:", state);
+                connection.peerConnection.onconnectionstatechange = () => {
+                    const state = connection.peerConnection.connectionState;
+                    console.log("Connection state changed:", state);
 
-                        if (state === "disconnected" && !isReconnecting) {
-                            isReconnecting = true;
-                            reconnectAttempts++;
-                            showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+                    if (state === "disconnected" && !isReconnecting) {
+                        isReconnecting = true;
+                        reconnectAttempts++;
+                        showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
 
-                            attemptConnection();
+                        attemptConnection();
 
-                            setTimeout(() => { isReconnecting = false; }, 3000);
+                        setTimeout(() => { isReconnecting = false; }, 3000);
 
-                            if (reconnectAttempts >= maxReconnectAttempts) {
-                                showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
-                                setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
-                            }
-                        }
-                        else if (state === "failed") {
-                            showMessage("Connection failed permanently. Redirecting...", "error");
+                        if (reconnectAttempts >= maxReconnectAttempts) {
+                            showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
                             setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
                         }
-                        else if (state === "connected") {
-                            reconnectAttempts = 0;
-                            isReconnecting = false;
-                            showMessage("Reconnected successfully!", "success");
-                        }
-                    };
-                });
-                connection.on('data', handleData);
-                connection.on('close', () => {
-                    showMessage("Sender has disconnected.", "info");
-                    resetState();
-                    navigateWithAnimation("index.html");
-                });
-            }
+                    }
+                    else if (state === "failed") {
+                        showMessage("Connection failed permanently. Redirecting...", "error");
+                        setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
+                    }
+                    else if (state === "connected") {
+                        reconnectAttempts = 0;
+                        isReconnecting = false;
+                        showMessage("Reconnected successfully!", "success");
+                    }
+                };
+            });
+            connection.on('data', handleData);
+            connection.on('close', () => {
+                showMessage("Sender has disconnected.", "info");
+                resetState();
+                navigateWithAnimation("index.html");
+            });
+        }
+    }
+
+    function handleData(message) {
+        const { type, payload } = message;
+        switch (type) {
+            case 'start':
+                handleFileStart(payload);
+                break;
+            case 'chunk':
+                handleFileChunk(payload);
+                break;
+            case 'end':
+                handleFileEnd(payload);
+                break;
+            case 'cancel':
+                showMessage("Sender cancelled the transfer.", "error");
+                resetState();
+                break;
+            case 'skip':
+                handleSkippedFile(payload);
+                break;
+            case 'ping':
+                if (connection && connection.open) {
+                    connection.send({ type: 'pong' });
+                }
+                break;
+        }
+    }
+
+    function handleFileStart(payload) {
+        logToScreen(`--- handleFileStart ENTERED for: ${payload.name} ---`);
+        logToScreen(`BEFORE logic: currentReceivingFile is ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+
+        let displayName = payload.name;
+
+        // if a file with this name already exists
+        if (incomingFiles[payload.name]) {
+            const baseName = payload.name.replace(/\.[^/.]+$/, ""); // filename without any extension
+            const extension = payload.name.split(".").pop();
+            displayName = `${baseName}_${Date.now()}.${extension}`;
         }
 
-        function handleData(message) {
-            const { type, payload } = message;
-            switch (type) {
-                case 'start':
-                    handleFileStart(payload);
-                    break;
-                case 'chunk':
-                    handleFileChunk(payload);
-                    break;
-                case 'end':
-                    handleFileEnd(payload);
-                    break;
-                case 'cancel':
-                    showMessage("Sender cancelled the transfer.", "error");
-                    resetState();
-                    break;
-                case 'skip':
-                    handleSkippedFile(payload);
-                    break;
-            }
-        }
+        const completeFileObject = {
+            name: displayName,
+            metadata: payload,
+            receivedSize: 0
+        };
+        incomingFiles[payload.name] = completeFileObject;
+        const fileElement = createFileElement(completeFileObject);
+        incomingFilesList.appendChild(fileElement);
 
-        function handleFileStart(payload) {
+        incomingFilesList.scrollTop = incomingFilesList.scrollHeight;
+
+        if (currentReceivingFile) {
+            fileQueue.push(payload);
+            const progressText = fileElement.querySelector('.file-progress-text');
+            progressText.textContent = 'Queued';
+            logToScreen(`QUEUED file: ${payload.name}`);
+        } else {
+            // If we are free, start the transfer immediately
             currentReceivingFile = payload;
             h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
             incomingFilesList.style.display = 'block';
             actionButtons.style.display = 'flex';
-
-            let displayName = payload.name;
-
-            // if a file with this name already exists
-            if (incomingFiles[payload.name]) {
-                const baseName = payload.name.replace(/\.[^/.]+$/, ""); // filename without any extension
-                const extension = payload.name.split(".").pop();
-                displayName = `${baseName}_${Date.now()}.${extension}`;
-            }
-
-            incomingFiles[payload.name] = {
-                name: displayName,
-                metadata: payload, // stores file info (name, size, type)
-                chunks: [], // empty array to hold pieces of file
-                receivedSize: 0 // how much data is received so far
-            };
-            const fileElement = createFileElement({ ...payload, name: displayName });
-            incomingFilesList.appendChild(fileElement);
+            logToScreen(`STARTED file: ${payload.name}`);
         }
 
-        async function handleFileChunk(payload) {
-            const file = incomingFiles[payload.name];
-            if (!file) return;
+        logToScreen(`AFTER logic: currentReceivingFile is now ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`Queue length is now: ${fileQueue.length}`);
+    }
 
-            const chunkToSave = {
-                fileName: payload.name,
-                index: payload.index,
-                data: payload.data
-            };
+    async function handleFileChunk(payload) {
+        const file = incomingFiles[payload.name];
+        if (!file) return;
 
-            try {
-                await saveChunk(chunkToSave);
+        // Send the acknowledgement immediately.
+        connection.send({ type: "ack", name: payload.name, index: payload.index });
 
-                file.receivedSize += payload.data.byteLength;
+        file.receivedSize += payload.data.byteLength;
 
-                const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
-                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
-                if (fileUiElement) {
+        const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
+        const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+        if (fileUiElement) {
+            const progressBar = fileUiElement.querySelector('.file-progress-bar');
+            const progressText = fileUiElement.querySelector('.file-progress-text');
+            progressBar.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+        }
+
+        const chunkToSave = {
+            fileName: payload.name,
+            index: payload.index,
+            data: payload.data
+        };
+
+        try {
+            await saveChunk(chunkToSave);
+            console.log(`RECEIVER: Sending ack for ${payload.name}, chunk #${payload.index}`);
+        } catch (error) {
+            console.error("Failed to save chunk to DB, but it was already acknowledged.", error);
+        }
+    }
+
+    function processQueue() {
+        logToScreen(`--- processQueue ENTERED ---`);
+        logToScreen(`BEFORE logic: currentReceivingFile is ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`Queue length is: ${fileQueue.length}`);
+
+        try {
+            if (fileQueue.length > 0 && !currentReceivingFile) {
+                const nextPayload = fileQueue.shift();
+                logToScreen(`Processing next file from queue: "${nextPayload.name}"`);
+                currentReceivingFile = nextPayload;
+
+                const file = incomingFiles[nextPayload.name]
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(nextPayload.name)}"]`);
+                if (file && fileUiElement && file.receivedSize === 0) {
+                    const progressText = fileUiElement.querySelector('.file-progress-text');
                     const progressBar = fileUiElement.querySelector('.file-progress-bar');
-                    const progressText = fileUiElement.querySelector('.file-progress-text');
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
+                    progressText.textContent = '0%';
+                    progressBar.style.width = '0%';
                 }
-                console.log(`RECEIVER: Sending ack for ${payload.name}, chunk #${payload.index}`);
-
-                // after handling a chunk send ack to sender
-                connection.send({ type: "ack", name: payload.name, index: payload.index });
-            } catch (error) {
-                console.error("Failed to process chunk, stopping transfer.", error);
             }
+        } catch (error) {
+            logToScreen(`!!!! CRASH in processQueue: ${error.message} !!!!`);
+        }
+        logToScreen(`AFTER logic: currentReceivingFile is now ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+    }
+
+    async function handleFileEnd(payload) {
+        logToScreen(`--- handleFileEnd ENTERED for: ${payload.name} ---`);
+
+        const file = incomingFiles[payload.name];
+        if (!file) {
+            logToScreen(`ERROR: handleFileEnd called for unknown file: ${payload.name}`);
+            return;
         }
 
-        async function handleFileEnd(payload) {
-            const file = incomingFiles[payload.name];
-            if (!file) return;
+        try {
+            const blob = await getChunksAndAssembleFile(payload.name, file.metadata.type);
+            downloadableBlobs[file.name] = blob;
 
-            try {
-                const blob = await getChunksAndAssembleFile(payload.name, file.metadata.type);
-                downloadableBlobs[file.name] = blob;
-
-                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
-                if (fileUiElement) {
-                    const progressText = fileUiElement.querySelector('.file-progress-text');
-                    progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
-                }
-
-                deleteFileChunks(payload.name);
-
-            } catch (error) {
-                console.error("Failed to assemble file from DB:", error);
-                showMessage("Error processing received file.", "error");
-            } finally {
-                currentReceivingFile = null;
+            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+            if (fileUiElement) {
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
             }
-        }
 
-        function handleSkippedFile(payload) {
-            const file = incomingFiles[payload.name];
+            deleteFileChunks(payload.name);
+
+        } catch (error) {
+            console.error("Failed to assemble file from DB:", error);
+            showMessage("Error processing received file.", "error");
+        } finally {
+            logToScreen(`In finally: Setting currentReceivingFile to null.`);
+            currentReceivingFile = null;
+            logToScreen(`In finally: Calling processQueue() with a short delay.`);
+            setTimeout(processQueue, 100);
+        }
+    }
+
+    function handleSkippedFile(payload) {
+        const file = incomingFiles[payload.name]; // gets the file object using original name
+        if (file) {
             if (currentReceivingFile && currentReceivingFile.name === payload.name) {
                 currentReceivingFile = null; // stop receiving this file
-                showMessage(`"${file.displayName}" transfer cancelled by sender`, "info");
+                showMessage(`"${file.name}" transfer cancelled by sender`, "info");
 
                 delete incomingFiles[payload.name];
-                delete downloadableBlobs[file.displayName];
+                delete downloadableBlobs[file.name];
 
-                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(file.displayName)}"]`);
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
                 if (fileUiElement) {
                     fileUiElement.style.opacity = 0;
                     setTimeout(() => fileUiElement.remove(), 300);
@@ -1130,38 +1272,14 @@
                 }
             }
         }
+    }
 
-        function showConfirm(message, onYes, onNo) {
-            msg.textContent = message;
-            overlay.style.display = "flex";
+    function createFileElement(file) {
+        const div = document.createElement("div");
+        div.className = "fileList";
+        div.dataset.fileName = file.name;
 
-            yesBtn.onclick = null; // clear old event handlers 
-            noBtn.onclick = null;
-
-            yesBtn.addEventListener("click", () => {
-                overlay.style.display = "none";
-                if (onYes) onYes();
-            });
-
-            noBtn.addEventListener("click", () => {
-                overlay.style.display = "none";
-                if (onNo) onNo();
-            });
-        }
-
-        function navigateWithAnimation(url) {
-            body.classList.add('fade-out');
-            setTimeout(() => {
-                window.location.href = url;
-            }, 450);
-        }
-
-        function createFileElement(file) {
-            const div = document.createElement("div");
-            div.className = "fileList";
-            div.dataset.fileName = file.name;
-
-            div.innerHTML = `
+        div.innerHTML = `
                 <div class="file-info">
                     <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
                     <div class="file-details">
@@ -1169,7 +1287,7 @@
                             <span class="filename" title="${file.name}">${file.name}</span>
                         </div>
                         <div class="file-meta-row">
-                            <span class="file-size">${formatFileSize(file.size)}</span>
+                            <span class="file-size">${formatFileSize(file.metadata.size)}</span>
                             <button class="download-file" title="Download this file"><i class="fa-solid fa-download" style="color:var(--primary);"></i></button>
                             <button class="delete-file" title="Delete this file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
                         </div>
@@ -1181,338 +1299,317 @@
                 </div>
             `;
 
-            const deleteBtn = div.querySelector(".delete-file");
-            deleteBtnEvent(deleteBtn, file, div);
+        const deleteBtn = div.querySelector(".delete-file");
+        deleteBtnEvent(deleteBtn, file, div);
 
-            const downloadBtn = div.querySelector(".download-file");
-            downloadBtnEvent(downloadBtn, file);
+        const downloadBtn = div.querySelector(".download-file");
+        downloadBtnEvent(downloadBtn, file);
 
-            return div;
-        }
+        return div;
+    }
 
-        function deleteBtnEvent(deleteBtn, file, div) {
-            deleteBtn.addEventListener("click", () => {
-                delete downloadableBlobs[file.displayName];
-                delete incomingFiles[file.metadata.name];
+    function deleteBtnEvent(deleteBtn, file, div) {
+        deleteBtn.addEventListener("click", () => {
+            delete downloadableBlobs[file.name];
+            delete incomingFiles[file.metadata.name];
 
-                div.style.transition = "opacity 0.3s ease";
-                div.style.opacity = "0";
-                setTimeout(() => {
-                    div.remove();
+            div.style.transition = "opacity 0.3s ease";
+            div.style.opacity = "0";
+            setTimeout(() => {
+                div.remove();
 
-                    if (incomingFilesList.children.length === 0) {
-                        actionButtons.style.display = 'none';
-                        incomingFilesList.style.display = 'none';
-                        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
-                    }
-                }, 300);
-
-                showMessage(`File "${file.displayName}" deleted`, "info");
-
-                if (connection && connection.open) {
-                    connection.send({
-                        type: "skip",
-                        payload: { name: file.metadata.name }
-                    });
+                if (incomingFilesList.children.length === 0) {
+                    actionButtons.style.display = 'none';
+                    incomingFilesList.style.display = 'none';
+                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
                 }
-            });
-        }
+            }, 300);
 
-        function downloadBtnEvent(downloadBtn, file) {
-            downloadBtn.addEventListener("click", () => {
-                const blob = downloadableBlobs[file.name];
-                if (!blob) {
-                    showMessage("File not ready yet!", "info");
-                    return;
-                }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = file.name;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-                showMessage(`File "${file.name}" downloaded`, "success");
-            });
-        }
-        acceptButton.addEventListener('click', () => {
-            acceptButton.disabled = true;
-            rejectButton.disabled = true;
-            acceptButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading';
+            showMessage(`File "${file.name}" deleted`, "info");
 
-            const rows = incomingFilesList.querySelectorAll(".fileList");
+            if (connection && connection.open) {
+                connection.send({
+                    type: "skip",
+                    payload: { name: file.metadata.name }
+                });
+            }
+        });
+    }
 
-            let removedCount = 0;
-            const total = rows.length;
+    function downloadBtnEvent(downloadBtn, file) {
+        downloadBtn.addEventListener("click", () => {
+            const blob = downloadableBlobs[file.name];
+            if (!blob) {
+                showMessage("File not ready yet!", "info");
+                return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showMessage(`File "${file.name}" downloaded`, "success");
+        });
+    }
+    acceptButton.addEventListener('click', () => {
+        acceptButton.disabled = true;
+        rejectButton.disabled = true;
+        acceptButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading';
 
-            rows.forEach((row) => {
-                row.style.transition = "opacity 0.3s ease";
-                row.style.opacity = "0";
+        const rows = incomingFilesList.querySelectorAll(".fileList");
 
-                setTimeout(() => {
-                    row.remove();
-                    removedCount++;
+        let removedCount = 0;
+        const total = rows.length;
 
-                    if (removedCount === total) {
-                        resetState(); // run only after all are gone
-                    }
-                }, 300);
-            });
+        rows.forEach((row) => {
+            row.style.transition = "opacity 0.3s ease";
+            row.style.opacity = "0";
 
             setTimeout(() => {
+                row.remove();
+                removedCount++;
 
-                for (const name in downloadableBlobs) {
-                    const blob = downloadableBlobs[name];
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = name;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    a.remove();
+                if (removedCount === total) {
+                    resetState(); // run only after all are gone
                 }
-
-                showMessage("Files accepted and downloaded!", "success");
-                resetState();
             }, 300);
         });
 
-        function disconnectTransfer() {
-            if (connection && connection.open) {
-                connection.send({ type: "cancel" }); // Notify sender
-                connection.close();
+        setTimeout(() => {
+
+            for (const name in downloadableBlobs) {
+                const blob = downloadableBlobs[name];
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
             }
+
+            showMessage("Files accepted and downloaded!", "success");
             resetState();
+        }, 300);
+    });
+
+    function disconnectTransfer() {
+        if (connection && connection.open) {
+            connection.send({ type: "cancel" }); // Notify sender
+            connection.close();
         }
+        resetState();
+    }
 
-        rejectButton.addEventListener('click', () => {
-            showConfirm("Remove all files ?", () => {
-                const rows = incomingFilesList.querySelectorAll(".fileList");
+    rejectButton.addEventListener('click', () => {
+        showConfirm("Remove all files ?", () => {
+            resetState();
+            showMessage("Files rejected!", "error");
 
-                let removedCount = 0;
-                const total = rows.length;
-
-                rows.forEach((row, index) => {
-                    row.style.transition = "opacity 0.3s ease";
-                    row.style.opacity = "0";
-
-                    setTimeout(() => {
-                        row.remove();
-                        removedCount++;
-
-                        if (removedCount === total) {
-                            resetState(); // run only after all are gone
-                        }
-                    }, 300);
-                });
-                showMessage("Files rejected!", "error");
-
+            if (connection && connection.open) {
                 connection.send({ type: "rejectAll" });
-            });
+            }
         });
+    });
 
-        function resetState() {
-            incomingFiles = {};
-            downloadableBlobs = {};
-            actionButtons.style.display = 'none';
-            incomingFilesList.style.display = 'none';
-            h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+    function resetState() {
+        incomingFiles = {};
+        downloadableBlobs = {};
+        actionButtons.style.display = 'none';
+        incomingFilesList.style.display = 'none';
+        incomingFilesList.innerHTML = "";
+        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+    }
+
+    function markInputError(msgText) {
+        peerIdInput.classList.remove('error'); // reset animation
+        void peerIdInput.offsetWidth; // recalculate the width of peerIdInput
+        peerIdInput.classList.add('error');
+        peerIdInput.focus();
+        connectButton.disabled = true; // disable's button while flashing
+        showMessage(msgText, "error");
+
+        setTimeout(() => {
+            connectButton.disabled = false;
+            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
+        }, 1200);
+    }
+
+    function openDatabase() {
+        // request is a type of ticket
+        // indexedDB is a type of master key maker built into every browser
+        // we made a request to master key maker to open a storage box
+        // fileStorageDB is the name of our personal storage box we want to open
+        // 1 is version number or 1st edition of our storage box
+        const request = indexedDB.open("fileStorageDB", 1);
+
+        // we are telling our request ticket if our storage box or database is new and empty we need to set it up
+        request.onupgradeneeded = function (event) {
+            let database = event.target.result; // browser gives us new empty database
+
+            // builds a shelf like ObjectStore inside our database to hold file chunks
+            database.createObjectStore("fileChunks", { autoIncrement: true });
         }
-
-        function markInputError(msgText) {
-            peerIdInput.classList.remove('error'); // reset animation
-            void peerIdInput.offsetWidth; // recalculate the width of peerIdInput
-            peerIdInput.classList.add('error');
-            peerIdInput.focus();
-            connectButton.disabled = true; // disable's button while flashing
-            showMessage(msgText, "error");
-
-            setTimeout(() => {
-                connectButton.disabled = false;
-                connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
-            }, 1200);
+        request.onsuccess = function (event) {
+            db = event.target.result; // browser gives us sucessful connection
+            console.log('Database is open and ready to be used.');
         }
-
-        function showMessage(msg, type = 'info') {
-            message.textContent = msg;
-            message.className = ''; // Clear previous classes
-            message.classList.add(type);
-            message.classList.add('show');
-
-            setTimeout(() => {
-                message.classList.remove('show');
-            }, 3000);
+        request.onerror = function (event) {
+            console.log('Database error ', event.target.error);
         }
+    }
 
-        function getIconByFileType(fileName) {
-            const index = fileName.lastIndexOf('.');
-            const ext = index > 0 && index < fileName.length - 1 ? fileName.slice(index + 1).toLowerCase() : '';
-
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'fa-file-image';
-            if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return 'fa-file-video';
-            if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'fa-file-audio';
-            if (['pdf'].includes(ext)) return 'fa-file-pdf';
-            if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) return 'fa-file-word';
-            if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) return 'fa-file-excel';
-            if (['ppt', 'pptx', 'odp'].includes(ext)) return 'fa-file-powerpoint';
-            if (['txt', 'md', 'log'].includes(ext)) return 'fa-file-lines';
-            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'fa-file-zipper';
-            if (['html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx', 'json', 'json5', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'svg'].includes(ext)) {
-                return 'fa-file-code';
-            }
-            if (['js', 'mjs', 'cjs'].includes(ext)) return 'fa-brands fa-js';
-            if (['php'].includes(ext)) return 'fa-brands fa-php';
-            if (['py', 'pyw'].includes(ext)) return 'fa-brands fa-python';
-            if (['swift'].includes(ext)) return 'fa-brands fa-swift';
-            if (['r', 'rscript'].includes(ext)) return 'fa-brands fa-r-project';
-            if (['ts', 'tsx', 'jsx', 'java', 'kt', 'kts', 'scala', 'c', 'h', 'hh', 'hpp', 'cpp', 'cxx', 'cc', 'cs', 'go', 'rs', 'rb', 'sh', 'bash', 'zsh', 'ps1', 'psm1', 'bat', 'cmd', 'sql'].includes(ext)) {
-                return 'fa-file-code';
-            }
-            return 'fa-file';
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        function openDatabase() {
-            // request is a type of ticket
-            // indexedDB is a type of master key maker built into every browser
-            // we made a request to master key maker to open a storage box
-            // fileStorageDB is the name of our personal storage box we want to open
-            // 1 is version number or 1st edition of our storage box
-            const request = indexedDB.open("fileStorageDB", 1);
-
-            // we are telling our request ticket if our storage box or database is new and empty we need to set it up
-            request.onupgradeneeded = function (event) {
-                let database = event.target.result; // browser gives us new empty database
-
-                // builds a shelf like ObjectStore inside our database to hold file chunks
-                database.createObjectStore("fileChunks", { autoIncrement: true });
-            }
-            request.onsuccess = function (event) {
-                db = event.target.result; // browser gives us sucessful connection
-                console.log('Database is open and ready to be used.');
-            }
-            request.onerror = function (event) {
-                console.log('Database error ', event.target.error);
-            }
-        }
-
-        // helps in saving a single chunk to database
-        function saveChunk(chunk) {
-            return new Promise(function (resolve, reject) {
-                const transaction = db.transaction(["fileChunks"], "readwrite");
-                const store = transaction.objectStore("fileChunks");
-                const request = store.add(chunk);
-
-                // When the save is successful, the promise is resolved.
-                request.onsuccess = function () {
-                    resolve();
-                };
-
-                // If there's an error, the promise is rejected.
-                request.onerror = function (event) {
-                    console.error("Error saving chunk to DB:", event.target.error);
-                    reject(event.target.error);
-                };
-            });
-        }
-
-        function getChunksAndAssembleFile(fileName, fileType) {
-            return new Promise(function (resolve, reject) {
-                const transaction = db.transaction(["fileChunks"], "readonly");
-                const store = transaction.objectStore("fileChunks");
-                const chunks = [];
-
-                const request = store.openCursor();
-
-                request.onsuccess = function (event) {
-                    const cursor = event.target.result;
-                    if (cursor) {
-                        if (cursor.value.fileName === fileName) {
-                            chunks.push(cursor.value);
-                        }
-                        cursor.continue(); //move to next chunk in storage box
-                    } else {
-                        chunks.sort(function (a, b) { return a.index - b.index; });
-
-                        const finalData = []
-                        for (let i = 0; i < chunks.length; i++) {
-                            finalData.push(chunks[i].data);
-                        }
-                        const fileBlob = new Blob(finalData, { type: fileType });
-                        resolve(fileBlob);
-                    }
-                };
-            });
-        }
-
-        function deleteFileChunks(fileName) {
+    // helps in saving a single chunk to database
+    function saveChunk(chunk) {
+        return new Promise(function (resolve, reject) {
             const transaction = db.transaction(["fileChunks"], "readwrite");
             const store = transaction.objectStore("fileChunks");
+            const request = store.add(chunk);
+
+            // When the save is successful, the promise is resolved.
+            request.onsuccess = function () {
+                resolve();
+            };
+
+            // If there's an error, the promise is rejected.
+            request.onerror = function (event) {
+                console.error("Error saving chunk to DB:", event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    function getChunksAndAssembleFile(fileName, fileType) {
+        return new Promise(function (resolve, reject) {
+            const transaction = db.transaction(["fileChunks"], "readonly");
+            const store = transaction.objectStore("fileChunks");
+            const chunks = [];
 
             const request = store.openCursor();
+
             request.onsuccess = function (event) {
                 const cursor = event.target.result;
                 if (cursor) {
                     if (cursor.value.fileName === fileName) {
-                        cursor.delete(); // Delete the matching chunk.
+                        chunks.push(cursor.value);
                     }
-                    cursor.continue();
+                    cursor.continue(); //move to next chunk in storage box
+                } else {
+                    chunks.sort(function (a, b) { return a.index - b.index; });
+
+                    const finalData = []
+                    for (let i = 0; i < chunks.length; i++) {
+                        finalData.push(chunks[i].data);
+                    }
+                    const fileBlob = new Blob(finalData, { type: fileType });
+                    resolve(fileBlob);
                 }
             };
-        }
+        });
+    }
 
-        backButton.addEventListener('click', () => {
-            showConfirm("Do you want to disconnect ?", () => {
-                if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
-                    disconnectTransfer();
+    function deleteFileChunks(fileName) {
+        const transaction = db.transaction(["fileChunks"], "readwrite");
+        const store = transaction.objectStore("fileChunks");
+
+        const request = store.openCursor();
+        request.onsuccess = function (event) {
+            const cursor = event.target.result;
+            if (cursor) {
+                if (cursor.value.fileName === fileName) {
+                    cursor.delete(); // Delete the matching chunk.
                 }
-                navigateWithAnimation("index.html");
-            });
-        });
-
-        peerIdInput.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                connectButton.click();
+                cursor.continue();
             }
-        });
+        };
+    }
 
-        peerIdInput.addEventListener("input", () => {
-            peerIdInput.classList.remove("error");
+    backButton.addEventListener('click', () => {
+        showConfirm("Do you want to disconnect ?", () => {
+            if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
+                disconnectTransfer();
+            }
+            navigateWithAnimation("index.html");
         });
+    });
 
-        function setDarkIcon(state) {
-            darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+    peerIdInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            connectButton.click();
         }
+    });
 
-        if (localStorage.getItem('theme') === 'dark') {
-            setDarkIcon('dark');
-        } else {
-            setDarkIcon('light');
-        }
+    peerIdInput.addEventListener("input", () => {
+        peerIdInput.classList.remove("error");
+    });
 
-        darkModeButton.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark-mode');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            setDarkIcon(isDark ? 'dark' : 'light');
-        });
+    function setDarkIcon(state) {
+        darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+    }
 
-        window.addEventListener("pageshow", () => {
-            const body = document.body;
-            body.classList.remove("fade-out");
-            body.classList.add("fade-in");
-        });
+    if (localStorage.getItem('theme') === 'dark') {
+        setDarkIcon('dark');
+    } else {
+        setDarkIcon('light');
+    }
 
-    </script>
+    darkModeButton.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.toggle('dark-mode');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        setDarkIcon(isDark ? 'dark' : 'light');
+    });
+
+    window.addEventListener("pageshow", () => {
+        const body = document.body;
+        body.classList.remove("fade-out");
+        body.classList.add("fade-in");
+    });
+
+
+
+
+    function logToScreen(message) {
+        const logContainer = document.getElementById('debug-log');
+        if (!logContainer) return;
+        const msgElement = document.createElement('div');
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        msgElement.textContent = `[${timestamp}] ${message}`;
+        msgElement.className = 'log-message';
+        logContainer.appendChild(msgElement);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    const inspectStateButton = document.getElementById('inspect-state-button');
+
+    inspectStateButton.addEventListener('click', () => {
+        logToScreen("--- STATE INSPECTION ---");
+        logToScreen(`isBusy: ${isBusy}`);
+        logToScreen(`currentReceivingFile: ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`incomingFiles object has ${Object.keys(incomingFiles).length} keys.`);
+
+        // check the UI visibility state
+        const listStyle = window.getComputedStyle(incomingFilesList).display;
+        logToScreen(`incomingFilesList is currently: ${listStyle}`);
+    });
+
+    const copyLogButton = document.getElementById('copy-log-button');
+
+    copyLogButton.addEventListener('click', () => {
+        const logContainer = document.getElementById('debug-log');
+        const logText = logContainer.innerText;
+        copyText(logText);
+    });
+
+    document.getElementById('clear-log-button').addEventListener('click', () => {
+        document.getElementById('debug-log').innerHTML = '';
+    });
+
+</script>
 </body>
 
 </html>
