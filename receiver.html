@@ -44,6 +44,8 @@
         }
 
         a,
+        span,
+        label,
         button,
         input,
         textarea {
@@ -663,6 +665,68 @@
             font-size: 1rem;
         }
 
+        .custom-checkbox {
+            display: none;
+        }
+
+        label[for="keepScreenOnCheckbox"] {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toggle-switch {
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            position: relative;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        /* 4. Create the sliding thumb (the circle) */
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        /* 5. Define the "ON" state when the hidden checkbox is checked */
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch {
+            background-color: var(--primary);
+        }
+
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch::before {
+            transform: translateX(20px);
+            /* Move the thumb to the right */
+        }
+
+        /* 6. Dark Mode styles for the track */
+        html.dark-mode .toggle-switch {
+            background-color: #555;
+        }
+
+        .options-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+            gap: 0.5rem;
+            color: var(--text-sub);
+        }
+
+        html.dark-mode .options-container {
+            color: var(--text-sub-dark);
+        }
+
         @media (max-width: 600px) {
             #container {
                 padding: 2rem 1.5rem;
@@ -874,6 +938,13 @@
             <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
         </div>
 
+        <div class="options-container">
+            <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
+            <label for="keepScreenOnCheckbox">Keep Screen On
+                <span class="toggle-switch"></span>
+            </label>
+        </div>
+
         <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
 
     </div>
@@ -920,6 +991,7 @@
     const msg = document.getElementById("confirmMessage");
     const yesBtn = document.getElementById("confirmYes");
     const noBtn = document.getElementById("confirmNo");
+    const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
     const tooltip = peerIdInput.nextElementSibling;
 
     body.classList.add('fade-in');
@@ -1568,6 +1640,15 @@
         const body = document.body;
         body.classList.remove("fade-out");
         body.classList.add("fade-in");
+    });
+
+    keepScreenOnCheckbox.addEventListener('change', () => {
+        toggleWakeLock(keepScreenOnCheckbox.checked);
+    });
+
+    // automatically release the lock if the connection closes
+    window.addEventListener('beforeunload', () => {
+        toggleWakeLock(false);
     });
 
 

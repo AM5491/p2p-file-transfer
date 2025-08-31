@@ -102,3 +102,40 @@ function showConfirm(message, onYes, onNo) {
         if (onNo) onNo();
     });
 }
+
+let screenWakeLock = null;
+async function toggleWakeLock(enable) {
+    const checkbox = document.getElementById('keepScreenOnCheckbox');
+    if (!('wakeLock' in navigator)) {
+        console.log('Screen Wake Lock API not supported.');
+        showMessage('Keep screen on feature is not supported by this browser.', 'info');
+        if (checkbox) {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+            return;
+        }
+    }
+    if (enable) {
+        try {
+            screenWakeLock = await navigator.wakeLock.request('screen');
+            screenWakeLock.addEventListener('release', () => {
+                console.log('Screen Wake Lock was released automatically.');
+                showMessage('Screen lock released.', 'info');
+                if (checkbox) checkbox.checked = false;
+            })
+            console.log('Screen Wake Lock is active.');
+            showMessage('Screen will stay on.', 'success');
+        } catch (error) {
+            console.error(`${error.name}, ${error.message}`);
+            showMessage('Could not activate screen lock.', 'error');
+            if (checkbox) checkbox.checked = false;
+        }
+    } else {
+        // if the lock is already active, release it
+        if (screenWakeLock !== null) {
+            await screenWakeLock.release();
+            screenWakeLock = null;
+            console.log('Screen Wake Lock released.');
+        }
+    }
+}
