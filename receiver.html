@@ -1743,15 +1743,20 @@
             const url = new URL(decodedText);
             const scannedPeerId = url.searchParams.get('peerId');
             if (scannedPeerId && /^\d{6}$/.test(scannedPeerId)) {
-                html5QrcodeScanner.clear().then(() => {
-                    console.log("QR Code scanner cleared.");
-                    qrReaderElement.style.display = 'none';
-                }).catch(error => {
-                    console.error("Failed to clear QR scanner.", error);
-                });
-                peerIdInput.value = scannedPeerId;
-                connectButton.click();
-                showMessage(`Connecting to ID : ${scannedPeerId}`, 'success');
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.clear().then(() => {
+                        console.log("QR Code scanner cleared.");
+                        qrReaderElement.style.display = 'none';
+                        peerIdInput.value = scannedPeerId;
+                        connectButton.click();
+                        showMessage(`Connecting to ID : ${scannedPeerId}`, 'success');
+                    }).catch(error => {
+                        console.error("Failed to clear QR scanner.", error);
+                        qrReaderElement.style.display = 'none';
+                        peerIdInput.value = scannedPeerId;
+                        connectButton.click();
+                    });
+                }
             } else {
                 showMessage('Invalid QR code scanned.', 'error');
             }
