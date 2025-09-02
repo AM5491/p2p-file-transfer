@@ -14,6 +14,7 @@
 
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <script src="common.js"></script>
@@ -74,10 +75,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            display: flex;
             background: var(--page-bg);
-            justify-content: center;
-            align-items: center;
             font-family: 'Poppins', sans-serif;
             opacity: 0;
             transition: background 0.6s ease, opacity 0.3s ease;
@@ -91,6 +89,15 @@
         body.fade-out {
             opacity: 0;
             animation: fadeOutAnimation ease 0.3s;
+        }
+
+        #main-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
         }
 
         @keyframes fadeInAnimation {
@@ -624,37 +631,6 @@
             }
         }
 
-        .tooltip {
-            position: fixed;
-            z-index: 9999;
-            left: 50%;
-            top: 5%;
-            transform: translate(-50%, -50%);
-            margin-top: 0.4rem;
-            padding: 0.45rem 0.45rem;
-            font-size: 0.85rem;
-            font-weight: 500;
-            border-radius: 6px;
-            background: rgb(189, 201, 209);
-            color: #000000;
-            text-align: center;
-            max-width: 260px;
-            white-space: normal;
-            opacity: 0;
-            transition: opacity 0.4s ease, transform 0.4s ease;
-            pointer-events: none;
-        }
-
-        .tooltip.show {
-            opacity: 1;
-            transform: translate(-50%, 5px);
-        }
-
-        html.dark-mode .tooltip {
-            background: rgb(71, 95, 119);
-            color: #ffffff;
-        }
-
         .download-file,
         .delete-file {
             background: none;
@@ -727,11 +703,107 @@
             color: var(--text-sub-dark);
         }
 
+        #qr-scanner-button {
+            display: none;
+            background: linear-gradient(92deg, #8b67b1 50%, #77a9ff 100%);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            width: 10rem;
+            height: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+
+        #qr-reader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-dialog {
+            background: var(--file-row-bg);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            max-height: 100vh;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .qr-dialog-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.7rem;
+        }
+
+        #qr-scanner-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+        }
+
+        #qr-scanner-container button {
+            display: inline-block;
+            background: #e9e9e9;
+            color: #333;
+            padding: 0.6rem 1.2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            margin: 0.35rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        html.dark-mode #qr-scanner-container button {
+            background: #3a4b5f;
+            color: #e0e0e0;
+        }
+
+        #qr-scanner-container>div {
+            margin: 0 auto !important;
+            max-width: 400px;
+            width: 100% !important;
+            background: #fff;
+            border-radius: 15px;
+            padding: 9px;
+        }
+
+        #close-scanner-button {
+            position: absolute;
+            top: 1px;
+            right: 1px;
+            font-size: 2rem;
+            color: var(--text-sub);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            z-index: 10;
+        }
+
         @media (max-width: 600px) {
             #container {
                 padding: 2rem 1.5rem;
                 gap: 1rem;
-                width: 90vw;
+                width: calc(100vw - 5rem);
                 min-width: auto;
             }
 
@@ -740,9 +812,18 @@
                 margin-top: 2.5rem;
             }
 
+            #manual-entry {
+                flex-direction: column;
+                justify-content: center;
+            }
+
             #peerIdInput {
                 font-size: 1rem;
-                width: 90%;
+                flex-grow: 1;
+            }
+
+            #qr-scanner-button {
+                display: block;
             }
 
             #connectButton {
@@ -813,6 +894,14 @@
             #confirmNo {
                 margin-left: 0rem;
             }
+
+            #toggleDebugButton {
+                top: 1rem;
+                left: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
         }
 
         @media (min-width: 1200px) {
@@ -860,8 +949,12 @@
             color: #fff;
             font-family: monospace;
             font-size: 10px;
-            display: flex;
+            display: none;
             flex-direction: column;
+        }
+
+        #debug-log-container.show {
+            display: flex;
         }
 
         #debug-log-header {
@@ -913,41 +1006,80 @@
             cursor: pointer;
             margin-right: 5px;
         }
+
+        #toggleDebugButton {
+            position: fixed;
+            top: 21px;
+            left: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #toggleDebugButton:hover {
+            transform: scale(1.1);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        html.dark-mode #toggleDebugButton {
+            background: #3b557b;
+            color: #7aff8c;
+        }
+
+        html.dark-mode #toggleDebugButton:hover {
+            background: #161b24;
+            color: #fff;
+        }
     </style>
 </head>
 
 <body>
     <div id="message"></div>
 
-    <div id="container">
+    <main id="main-content">
+        <button id="toggleDebugButton" title="Toggle Debug Console"><i class="fa-solid fa-bug"></i></button>
+        <div id="container">
 
-        <button id="darkModeButton" title="Toggle dark mode"><i class="fa-solid fa-sun"></i></button>
+            <button id="darkModeButton" title="Toggle dark mode"><i class="fa-solid fa-sun"></i></button>
 
-        <h2><i class="fa-solid fa-inbox"></i> Receive Files</h2>
+            <h2><i class="fa-solid fa-inbox"></i> Receive Files</h2>
 
-        <div id="manual-entry">
-            <input type="text" id="peerIdInput" maxlength="6" placeholder="Enter 6-digit code">
-            <div class="tooltip">Tap the box to type code</div>
-            <button id="connectButton"><i class="fa-solid fa-link"></i> Connect</button>
+            <div id="manual-entry">
+                <input type="text" id="peerIdInput" maxlength="6" placeholder="Enter 6-digit code">
+                <button id="qr-scanner-button" title="Scan QR Code"><i class="fa-solid fa-qrcode"></i> Scan QR
+                    Code</button>
+                <button id="connectButton"><i class="fa-solid fa-link"></i> Connect</button>
+            </div>
+
+            <div id="incomingFilesList" class="file-list-container"></div>
+
+            <div class="action-buttons">
+                <button class="reject"><i class="fa-solid fa-circle-xmark"></i>Reject All</button>
+                <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
+            </div>
+
+            <div class="options-container">
+                <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
+                <label for="keepScreenOnCheckbox">Keep Screen On
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+
+            <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
         </div>
-
-        <div id="incomingFilesList" class="file-list-container"></div>
-
-        <div class="action-buttons">
-            <button class="reject"><i class="fa-solid fa-circle-xmark"></i>Reject All</button>
-            <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
-        </div>
-
-        <div class="options-container">
-            <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
-            <label for="keepScreenOnCheckbox">Keep Screen On
-                <span class="toggle-switch"></span>
-            </label>
-        </div>
-
-        <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
-
-    </div>
+    </main>
 
     <div id="confirmDialog" class="dialog-overlay" style="display: none;">
         <div class="dialog-box">
@@ -969,6 +1101,14 @@
         <div id="debug-log"></div>
     </div>
 
+    <div id="qr-reader" style="display: none;">
+        <div class="qr-dialog">
+            <button id="close-scanner-button">&times;</button>
+            <div class="qr-dialog-body">
+                <div id="qr-scanner-container"></div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
@@ -992,7 +1132,9 @@
     const yesBtn = document.getElementById("confirmYes");
     const noBtn = document.getElementById("confirmNo");
     const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
-    const tooltip = peerIdInput.nextElementSibling;
+    const qrScannerButton = document.getElementById('qr-scanner-button');
+    const qrReaderElement = document.getElementById('qr-reader');
+    const closeScannerButton = document.getElementById('close-scanner-button');
 
     body.classList.add('fade-in');
 
@@ -1011,6 +1153,7 @@
     const maxReconnectAttempts = 3;
     let fileQueue = [];
     let db; // this will hold database connection
+    let html5QrcodeScanner;
 
     const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -1025,32 +1168,6 @@
         setTimeout(() => {
             peerIdInput.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 200);
-
-        if (!peerIdInput.value.trim()) {
-            tooltip.classList.add("show");
-            tooltip.style.opacity = "1";
-        }
-
-        peerIdInput.addEventListener("input", () => {
-            tooltip.style.opacity = "0";
-            setTimeout(() => {
-                tooltip.classList.remove("show");
-            }, 400);
-        });
-
-        peerIdInput.addEventListener("focus", () => {
-            tooltip.style.opacity = "0";
-            setTimeout(() => {
-                tooltip.classList.remove("show");
-            }, 400);
-        });
-
-        peerIdInput.addEventListener("blur", () => {
-            if (!peerIdInput.value.trim()) {
-                tooltip.classList.add("show");
-                tooltip.style.opacity = "1";
-            }
-        });
 
         connectButton.addEventListener('click', async () => {
             const enteredId = peerIdInput.value.trim();
@@ -1620,6 +1737,58 @@
         peerIdInput.classList.remove("error");
     });
 
+    const onSuccessfulScan = (decodedText, decodedResult) => {
+        console.log(`Scan Result : ${decodedResult}`);
+        try {
+            const url = new URL(decodedText);
+            const scannedPeerId = url.searchParams.get('peerId');
+            if (scannedPeerId && /^\d{6}$/.test(scannedPeerId)) {
+                html5QrcodeScanner.clear().then(() => {
+                    console.log("QR Code scanner cleared.");
+                    qrReaderElement.style.display = 'none';
+                }).catch(error => {
+                    console.error("Failed to clear QR scanner.", error);
+                });
+                peerIdInput.value = scannedPeerId;
+                connectButton.click();
+                showMessage(`Connecting to ID : ${scannedPeerId}`, 'success');
+            } else {
+                showMessage('Invalid QR code scanned.', 'error');
+            }
+        } catch (error) {
+            showMessage('QR code is not a valid URL.', 'error');
+        }
+    };
+
+    const onScanFailure = (error) => {
+        // This error fires continuously, so we usually don't show a message.
+        // console.warn(`QR scan error: ${error}`);
+    };
+
+    html5QrcodeScanner = new Html5QrcodeScanner(
+        "qr-scanner-container", // ID if the div where scanner will appear
+        { fps: 10, qrbox: { width: 250, height: 250 } }, // Scanner configuration
+        false // verbose = false
+    );
+
+    qrScannerButton.addEventListener('click', () => {
+        qrReaderElement.style.display = 'flex';
+        // Start the scanner. This will ask for camera permission.
+        html5QrcodeScanner.render(onSuccessfulScan, onScanFailure);
+    });
+
+    closeScannerButton.addEventListener('click', () => {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().then(() => {
+                console.log("QR Code scanner cleared by user.");
+                qrReaderElement.style.display = 'none';
+            }).catch(error => {
+                console.error("Failed to clear QR scanner.", error);
+                qrReaderElement.style.display = 'none'; // Hide it anyway
+            });
+        }
+    });
+
     function setDarkIcon(state) {
         darkModeButton.innerHTML = state === 'dark' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
     }
@@ -1653,7 +1822,11 @@
 
 
 
-
+    const toggleDebugButton = document.getElementById('toggleDebugButton');
+    const debugLogContainer = document.getElementById('debug-log-container');
+    toggleDebugButton.addEventListener('click', () => {
+        debugLogContainer.classList.toggle('show');
+    });
     function logToScreen(message) {
         const logContainer = document.getElementById('debug-log');
         if (!logContainer) return;
