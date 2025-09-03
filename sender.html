@@ -1117,6 +1117,8 @@
         const noBtn = document.getElementById("confirmNo");
         const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
 
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
         body.classList.add('fade-in');
 
         let peer = null;
@@ -1164,7 +1166,14 @@
                 codeContainer.style.display = 'flex';
 
                 const receiverUrl = window.location.href.replace(/[^/]*$/, '') + 'receiver.html?peerId=' + id;
-                new QRCode(qrCodeContainer, { text: receiverUrl, width: 160, height: 160 });
+                new QRCode(qrCodeContainer, {
+                    text: receiverUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
                 qrCodeContainer.style.display = 'block';
 
                 copyIdButton.addEventListener('click', function () { copyText(id); });
@@ -1289,7 +1298,8 @@
         }
 
         function updateSummary() {
-            if (selectedFiles.length === 0) {
+            const activeFiles = selectedFiles.filter(file => !file.skippedByUser);
+            if (activeFiles.length === 0) {
                 filesDisplayArea.style.display = "none";
                 fileSummary.style.display = "none";
                 clearAllButton.style.display = "none";
@@ -1297,11 +1307,11 @@
                 sendButton.disabled = true;
             } else {
                 let totalSize = 0;
-                for (let i = 0; i < selectedFiles.length; i++) {
-                    totalSize += selectedFiles[i].size;
+                for (let i = 0; i < activeFiles.length; i++) {
+                    totalSize += activeFiles[i].size;
                 }
                 fileSummary.style.display = "block";
-                fileSummary.textContent = `${selectedFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
+                fileSummary.textContent = `${activeFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
                 clearAllButton.style.display = "block";
                 sendButton.style.display = "block";
                 sendButton.disabled = false;
@@ -1333,21 +1343,29 @@
             `;
 
             const deleteBtn = div.querySelector(".delete-file");
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent any parent click events
-                selectedFiles = selectedFiles.filter(f => f.name !== file.name); // remove file object
-                if (isTransferring && currentFile && currentFile.name === file.name) {
-                    if (connection && connection.open) {
-                        connection.send({ type: "skip", payload: { name: file.name } }); // notify receiver
-                    }
-                    showMessage(`"${file.name}" transfer cancelled`, "info");
-                }
-
-                div.remove();
-                updateSummary();
-            });
-
+            deleteBtnEvent(deleteBtn, file, div);
             return div;
+        }
+
+        function deleteBtnEvent(deleteBtn, file, div) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevents any parent click events
+                showConfirm(`Remove file "${file.name}" ?`, () => {
+                    file.skippedByUser = true;
+
+                    // If a transfer is already in progress, we MUST notify the receiver.
+                    if (isTransferring && connection && connection.open) {
+                        connection.send({ type: "skip", payload: { name: file.name } });
+                    }
+
+                    // If we're deleting the specific file being sent right now, show a special message.
+                    if (isTransferring && currentFile && currentFile.name === file.name) {
+                        showMessage(`"${file.name}" transfer cancelled`, "info");
+                    }
+                    div.remove();
+                    updateSummary();
+                });
+            });
         }
 
         function renderFiles() {
@@ -1380,6 +1398,7 @@
         function cancelTransfer() {
             if (isTransferring) {
                 isTransferring = false; // This will stop the sending loop
+                currentFile = null;
                 if (connection && connection.open) {
                     connection.send({ type: "cancel" }); // Notify receiver
                     connection.close(); // Close the connection
@@ -1445,6 +1464,8 @@
             selectedFiles.sort((a, b) => a.size - b.size);
 
             for (const file of selectedFiles) {
+                if (file.skippedByUser) continue;
+                currentFile = file;
                 const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
                 if (!fileUiElement) continue;
 
@@ -1512,6 +1533,8 @@
                     successfulTransfers++;
                 }
             }
+
+            currentFile = null;
 
             connection.off('data', handleData);
             isTransferring = false;

@@ -14,7 +14,6 @@
 
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <script src="common.js"></script>
@@ -703,102 +702,6 @@
             color: var(--text-sub-dark);
         }
 
-        #qr-scanner-button {
-            display: none;
-            background: linear-gradient(92deg, #8b67b1 50%, #77a9ff 100%);
-            color: #fff;
-            border: none;
-            border-radius: 20px;
-            width: 10rem;
-            height: 40px;
-            font-size: 1rem;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: transform 0.2s;
-        }
-
-        #qr-reader {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(20px);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .qr-dialog {
-            background: var(--file-row-bg);
-            border-radius: 12px;
-            width: 90%;
-            max-width: 450px;
-            max-height: 100vh;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .qr-dialog-body {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.7rem;
-        }
-
-        #qr-scanner-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            width: 100%;
-        }
-
-        #qr-scanner-container button {
-            display: inline-block;
-            background: #e9e9e9;
-            color: #333;
-            padding: 0.6rem 1.2rem;
-            border-radius: 50px;
-            text-decoration: none;
-            margin: 0.35rem;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-
-        html.dark-mode #qr-scanner-container button {
-            background: #3a4b5f;
-            color: #e0e0e0;
-        }
-
-        #qr-scanner-container>div {
-            margin: 0 auto !important;
-            max-width: 400px;
-            width: 100% !important;
-            background: #fff;
-            border-radius: 15px;
-            padding: 9px;
-        }
-
-        #close-scanner-button {
-            position: absolute;
-            top: 1px;
-            right: 1px;
-            font-size: 2rem;
-            color: var(--text-sub);
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            z-index: 10;
-        }
-
         @media (max-width: 600px) {
             #container {
                 padding: 2rem 1.5rem;
@@ -820,10 +723,6 @@
             #peerIdInput {
                 font-size: 1rem;
                 flex-grow: 1;
-            }
-
-            #qr-scanner-button {
-                display: block;
             }
 
             #connectButton {
@@ -1057,8 +956,6 @@
 
             <div id="manual-entry">
                 <input type="text" id="peerIdInput" maxlength="6" placeholder="Enter 6-digit code">
-                <button id="qr-scanner-button" title="Scan QR Code"><i class="fa-solid fa-qrcode"></i> Scan QR
-                    Code</button>
                 <button id="connectButton"><i class="fa-solid fa-link"></i> Connect</button>
             </div>
 
@@ -1100,15 +997,6 @@
         </div>
         <div id="debug-log"></div>
     </div>
-
-    <div id="qr-reader" style="display: none;">
-        <div class="qr-dialog">
-            <button id="close-scanner-button">&times;</button>
-            <div class="qr-dialog-body">
-                <div id="qr-scanner-container"></div>
-            </div>
-        </div>
-    </div>
 </body>
 
 </html>
@@ -1132,9 +1020,8 @@
     const yesBtn = document.getElementById("confirmYes");
     const noBtn = document.getElementById("confirmNo");
     const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
-    const qrScannerButton = document.getElementById('qr-scanner-button');
-    const qrReaderElement = document.getElementById('qr-reader');
-    const closeScannerButton = document.getElementById('close-scanner-button');
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     body.classList.add('fade-in');
 
@@ -1153,7 +1040,8 @@
     const maxReconnectAttempts = 3;
     let fileQueue = [];
     let db; // this will hold database connection
-    let html5QrcodeScanner;
+    let chunkTimeout = null;
+    const CHUNK_TIMEOUT_DURATION = 8000;
 
     const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -1338,6 +1226,8 @@
         } else {
             // If we are free, start the transfer immediately
             currentReceivingFile = payload;
+            if (chunkTimeout) clearTimeout(chunkTimeout); // Clear any old timer
+            chunkTimeout = setTimeout(handleFileTimeout, CHUNK_TIMEOUT_DURATION); // Start new timer
             h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
             incomingFilesList.style.display = 'block';
             actionButtons.style.display = 'flex';
@@ -1349,6 +1239,8 @@
     }
 
     async function handleFileChunk(payload) {
+        if (chunkTimeout) clearTimeout(chunkTimeout);
+        chunkTimeout = setTimeout(handleFileTimeout, CHUNK_TIMEOUT_DURATION);
         const file = incomingFiles[payload.name];
         if (!file) return;
 
@@ -1406,7 +1298,30 @@
         logToScreen(`AFTER logic: currentReceivingFile is now ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
     }
 
+    function handleFileTimeout() {
+        if (!currentReceivingFile) return;
+
+        const failedFileName = currentReceivingFile.name;
+        logToScreen(`--- CHUNK TIMEOUT for ${failedFileName} ---`);
+        showMessage(`Transfer for "${failedFileName}" timed out.`, "error");
+
+        const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(failedFileName)}"]`);
+        if (fileUiElement) {
+            const progressText = fileUiElement.querySelector('.file-progress-text');
+            progressText.textContent = "Timed Out";
+            fileUiElement.style.opacity = '0.5';
+        }
+
+        // Reset state and move on to the next file in the queue
+        currentReceivingFile = null;
+        clearTimeout(chunkTimeout);
+        chunkTimeout = null;
+        processQueue();
+    }
+
     async function handleFileEnd(payload) {
+        if (chunkTimeout) clearTimeout(chunkTimeout);
+        chunkTimeout = null;
         logToScreen(`--- handleFileEnd ENTERED for: ${payload.name} ---`);
 
         const file = incomingFiles[payload.name];
@@ -1441,8 +1356,10 @@
     function handleSkippedFile(payload) {
         const file = incomingFiles[payload.name]; // gets the file object using original name
         if (file) {
+            // runs if the sender cancels the file that is currently being sent
             if (currentReceivingFile && currentReceivingFile.name === payload.name) {
                 currentReceivingFile = null; // stop receiving this file
+                if (chunkTimeout) clearTimeout(chunkTimeout);
                 showMessage(`"${file.name}" transfer cancelled by sender`, "info");
 
                 delete incomingFiles[payload.name];
@@ -1451,14 +1368,16 @@
                 const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
                 if (fileUiElement) {
                     fileUiElement.style.opacity = 0;
-                    setTimeout(() => fileUiElement.remove(), 300);
+                    setTimeout(() => {
+                        fileUiElement.remove();
+                        if (incomingFilesList.children.length === 0) {
+                            actionButtons.style.display = 'none';
+                            incomingFilesList.style.display = 'none';
+                            h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                        }
+                    }, 300);
                 }
-
-                if (incomingFilesList.children.length === 0) {
-                    actionButtons.style.display = 'none';
-                    incomingFilesList.style.display = 'none';
-                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
-                }
+                processQueue();
             }
         }
     }
@@ -1499,29 +1418,45 @@
 
     function deleteBtnEvent(deleteBtn, file, div) {
         deleteBtn.addEventListener("click", () => {
-            delete downloadableBlobs[file.name];
-            delete incomingFiles[file.metadata.name];
+            showConfirm(`Delete File "${file.name}" ?`, () => {
+                const originalFileName = file.metadata.name;
+                const wasCurrentlyReceiving = currentReceivingFile && currentReceivingFile.name === originalFileName;
 
-            div.style.transition = "opacity 0.3s ease";
-            div.style.opacity = "0";
-            setTimeout(() => {
-                div.remove();
+                // --- THE REAL FIX ---
 
-                if (incomingFilesList.children.length === 0) {
-                    actionButtons.style.display = 'none';
-                    incomingFilesList.style.display = 'none';
-                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                // STEP 1: Clean up the receiver's internal state FIRST. This is the crucial change.
+                // This ensures we are ready for the next file before the sender can act.
+                delete downloadableBlobs[file.name];
+                delete incomingFiles[originalFileName];
+                fileQueue = fileQueue.filter(f => f.name !== originalFileName);
+
+                if (wasCurrentlyReceiving) {
+                    currentReceivingFile = null;
+                    if (chunkTimeout) clearTimeout(chunkTimeout);
                 }
-            }, 300);
 
-            showMessage(`File "${file.name}" deleted`, "info");
+                // STEP 2: NOW that our state is clean, tell the sender to skip.
+                if (connection && connection.open) {
+                    connection.send({ type: "skip", payload: { name: originalFileName } });
+                }
 
-            if (connection && connection.open) {
-                connection.send({
-                    type: "skip",
-                    payload: { name: file.metadata.name }
-                });
-            }
+                // STEP 3: Clean up the UI.
+                div.style.transition = "opacity 0.3s ease";
+                div.style.opacity = 0;
+                setTimeout(() => {
+                    div.remove();
+                    if (incomingFilesList.children.length === 0) {
+                        actionButtons.style.display = 'none';
+                        incomingFilesList.style.display = 'none';
+                        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                    }
+                }, 300);
+
+                // STEP 4: Process any other files that were already in the queue.
+                processQueue();
+
+                showMessage(`File "${file.name}" deleted`, "info");
+            });
         });
     }
 
@@ -1543,6 +1478,7 @@
             showMessage(`File "${file.name}" downloaded`, "success");
         });
     }
+
     acceptButton.addEventListener('click', () => {
         acceptButton.disabled = true;
         rejectButton.disabled = true;
@@ -1735,63 +1671,6 @@
 
     peerIdInput.addEventListener("input", () => {
         peerIdInput.classList.remove("error");
-    });
-
-    const onSuccessfulScan = (decodedText, decodedResult) => {
-        console.log(`Scan Result : ${decodedResult}`);
-        try {
-            const url = new URL(decodedText);
-            const scannedPeerId = url.searchParams.get('peerId');
-            if (scannedPeerId && /^\d{6}$/.test(scannedPeerId)) {
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.clear().then(() => {
-                        console.log("QR Code scanner cleared.");
-                        qrReaderElement.style.display = 'none';
-                        peerIdInput.value = scannedPeerId;
-                        connectButton.click();
-                        showMessage(`Connecting to ID : ${scannedPeerId}`, 'success');
-                    }).catch(error => {
-                        console.error("Failed to clear QR scanner.", error);
-                        qrReaderElement.style.display = 'none';
-                        peerIdInput.value = scannedPeerId;
-                        connectButton.click();
-                    });
-                }
-            } else {
-                showMessage('Invalid QR code scanned.', 'error');
-            }
-        } catch (error) {
-            showMessage('QR code is not a valid URL.', 'error');
-        }
-    };
-
-    const onScanFailure = (error) => {
-        // This error fires continuously, so we usually don't show a message.
-        // console.warn(`QR scan error: ${error}`);
-    };
-
-    html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-scanner-container", // ID if the div where scanner will appear
-        { fps: 10, qrbox: { width: 250, height: 250 } }, // Scanner configuration
-        false // verbose = false
-    );
-
-    qrScannerButton.addEventListener('click', () => {
-        qrReaderElement.style.display = 'flex';
-        // Start the scanner. This will ask for camera permission.
-        html5QrcodeScanner.render(onSuccessfulScan, onScanFailure);
-    });
-
-    closeScannerButton.addEventListener('click', () => {
-        if (html5QrcodeScanner) {
-            html5QrcodeScanner.clear().then(() => {
-                console.log("QR Code scanner cleared by user.");
-                qrReaderElement.style.display = 'none';
-            }).catch(error => {
-                console.error("Failed to clear QR scanner.", error);
-                qrReaderElement.style.display = 'none'; // Hide it anyway
-            });
-        }
     });
 
     function setDarkIcon(state) {

@@ -86,21 +86,33 @@ function formatFileSize(bytes) {
 }
 
 function showConfirm(message, onYes, onNo) {
+    // --- START: ADDED FOR DEBUGGING ---
+    console.log("showConfirm called with message:", message);
+    if (typeof onYes === 'function') {
+        console.log("A valid 'onYes' callback was provided.");
+    } else {
+        console.error("CRITICAL: 'onYes' is NOT a function!");
+    }
+    // --- END: ADDED FOR DEBUGGING ---
+
     msg.textContent = message;
     overlay.style.display = "flex";
 
-    yesBtn.onclick = null; // clear old event handlers 
-    noBtn.onclick = null;
-
-    yesBtn.addEventListener("click", () => {
+    yesBtn.onclick = () => {
+        // --- ADDED FOR DEBUGGING ---
+        console.log("✅ 'Yes' button was clicked. Executing the onYes callback now.");
+        // --- END: ADDED FOR DEBUGGING ---
         overlay.style.display = "none";
         if (onYes) onYes();
-    });
+    };
 
-    noBtn.addEventListener("click", () => {
+    noBtn.onclick = () => {
+        // --- ADDED FOR DEBUGGING ---
+        console.log("❌ 'No' button was clicked.");
+        // --- END: ADDED FOR DEBUGGING ---
         overlay.style.display = "none";
         if (onNo) onNo();
-    });
+    };
 }
 
 let screenWakeLock = null;
@@ -137,5 +149,22 @@ async function toggleWakeLock(enable) {
             screenWakeLock = null;
             console.log('Screen Wake Lock released.');
         }
+    }
+}
+
+function handleBeforeUnload(event) {
+    // Check if a connection object exists and is open on either page.
+    const isConnected = typeof connection !== 'undefined' && connection && connection.open;
+
+    // Check if the sender is actively transferring a file.
+    const isSenderTransferring = typeof isTransferring !== 'undefined' && isTransferring;
+
+    // Check if the receiver has any files in its list (which implies a transfer has started).
+    const isReceiverActive = typeof incomingFiles !== 'undefined' && Object.keys(incomingFiles).length > 0;
+
+    // If a connection is established OR a transfer is happening, show the prompt.
+    if (isConnected || isSenderTransferring || isReceiverActive) {
+        event.preventDefault(); // Required to show the prompt.
+        event.returnValue = ''; // Required for legacy browsers.
     }
 }
