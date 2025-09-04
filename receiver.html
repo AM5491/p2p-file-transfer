@@ -1041,7 +1041,7 @@
     let fileQueue = [];
     let db; // this will hold database connection
     let chunkTimeout = null;
-    const CHUNK_TIMEOUT_DURATION = 8000;
+    const CHUNK_TIMEOUT_DURATION = 30000;
 
     const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
 
@@ -1061,25 +1061,26 @@
             const enteredId = peerIdInput.value.trim();
             if (/^\d{6}$/.test(enteredId)) {
                 connectButton.disabled = true;
-                connectButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying';
+                h2.innerHTML = `<i class="fa-solid fa-link"></i> Verifying Code <i class="fa fa-check-circle"></i>`;
+                manualEntryDiv.style.display = "none";
                 try {
                     const response = await fetch(`${SERVER_URL}/check-id/${enteredId}`);
                     if (!response.ok) throw new Error("Server not reachable");
                     const data = await response.json();
 
                     if (data.idExists) {
-                        manualEntryDiv.style.display = "none";
                         startConnection(enteredId);
                     } else {
                         markInputError("Enter a correct 6 digit peer id");
-                        connectButton.disabled = false;
-                        connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
+                        h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+                        manualEntryDiv.style.display = 'flex';
                     }
                 } catch (error) {
                     console.error("Failed to verify ID:", error);
                     showMessage("Could not connect to the server. Please ensure the backend is running.", "error");
+                    h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+                    manualEntryDiv.style.display = 'flex';
                     connectButton.disabled = false;
-                    connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
                 }
             } else {
                 markInputError("Enter a correct 6 digit peer id");
@@ -1099,7 +1100,7 @@
         });
 
         peer.on('open', id => {
-            h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender...`;
+            h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender <i class="fa fa-check-circle"></i>`;
             attemptConnection();
         });
         peer.on('error', err => {
@@ -1125,7 +1126,7 @@
             connection = peer.connect(senderId);
 
             connection.on('open', () => {
-                h2.innerHTML = '<i class="fa-solid fa-check-circle"></i> Connected! Waiting for files...';
+                h2.innerHTML = `Connected <i class="fa fa-check-circle" style="color:var(--primary);"></i> Waiting for files <i class="fas fa-hourglass fa-spin"></i>`;
                 console.log("Connection established with sender.");
                 showMessage("Connected to sender!", "success");
 
@@ -1320,9 +1321,14 @@
     }
 
     async function handleFileEnd(payload) {
+        if (!currentReceivingFile || currentReceivingFile.name !== payload.name) {
+            logToScreen(`WARNING: Received a late/unexpected 'end' message for ${payload.name}. Ignoring it.`);
+            return; // Exit the function immediately.
+        }
+
+        logToScreen(`--- handleFileEnd ENTERED for: ${payload.name} ---`);
         if (chunkTimeout) clearTimeout(chunkTimeout);
         chunkTimeout = null;
-        logToScreen(`--- handleFileEnd ENTERED for: ${payload.name} ---`);
 
         const file = incomingFiles[payload.name];
         if (!file) {
@@ -1658,6 +1664,8 @@
             if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
                 disconnectTransfer();
             }
+            // remove the listener so the browser doesn't show its own pop-up
+            window.removeEventListener('beforeunload', handleBeforeUnload);
             navigateWithAnimation("index.html");
         });
     });

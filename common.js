@@ -86,30 +86,15 @@ function formatFileSize(bytes) {
 }
 
 function showConfirm(message, onYes, onNo) {
-    // --- START: ADDED FOR DEBUGGING ---
-    console.log("showConfirm called with message:", message);
-    if (typeof onYes === 'function') {
-        console.log("A valid 'onYes' callback was provided.");
-    } else {
-        console.error("CRITICAL: 'onYes' is NOT a function!");
-    }
-    // --- END: ADDED FOR DEBUGGING ---
-
     msg.textContent = message;
     overlay.style.display = "flex";
 
     yesBtn.onclick = () => {
-        // --- ADDED FOR DEBUGGING ---
-        console.log("✅ 'Yes' button was clicked. Executing the onYes callback now.");
-        // --- END: ADDED FOR DEBUGGING ---
         overlay.style.display = "none";
         if (onYes) onYes();
     };
 
     noBtn.onclick = () => {
-        // --- ADDED FOR DEBUGGING ---
-        console.log("❌ 'No' button was clicked.");
-        // --- END: ADDED FOR DEBUGGING ---
         overlay.style.display = "none";
         if (onNo) onNo();
     };
